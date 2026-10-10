@@ -1,0 +1,202 @@
+# tueen/database
+> The Zero-Config, High-Throughput Relational Engine for Modern Telegram Bots (PHP 8.4+)
+
+Package Name: tueen/database
+GitHub Repository: https://github.com/tueen/database
+Base URL: https://database.tueen.dev/
+Documentation Root: https://database.tueen.dev/guide/
+Architecture: Zero-Config WordPress-style auto-migrations, PHP 8.4 property hooks, signed 64-bit BigInt chat IDs, DECIMAL(36, 18) BCMath ledgers.
+
+> Note: All documentation links below are relative to `Base URL`. If the documentation or guides are not sufficient for your task, inspect the source code, tests, and examples directly on GitHub: https://github.com/tueen/database
+
+## AI Agent Skill & Coding Guidelines
+When writing code for `tueen/database`, AI assistants and agents MUST adhere to these architectural rules:
+1. Always enable strict types: `declare(strict_types=1);`.
+2. Property access & visibility: Use asymmetric visibility `public private(set)` for entity primary keys and timestamps.
+3. Property hooks: Prefer property hooks (`get => ...`, `set => ...`) over repetitive getter/setter methods.
+4. Telegram Chat IDs: Chat IDs are signed 64-bit integers (user IDs > 0, groups/channels < 0). Never map chat_id as unsigned!
+5. Multi-Currency Ledger: Monetary values are stored as `DECIMAL(36, 18)` strings. Never use native float arithmetic; always use BCMath.
+6. Zero-Config Migrations: Automatic lazy schema synchronization on boot without requiring manual CLI migration runs.
+7. Multi-Database Support: Ensure compatibility with SQLite (:memory: and file), MySQL 8+, MariaDB, and PostgreSQL.
+8. Repository Inspection Fallback: If documentation is insufficient or missing edge-case details, check the GitHub repository at https://github.com/tueen/database for full source code, types, and test suites.
+
+## Complete Documentation Map & Topic Outline
+
+### 🚀 Getting Started
+- [Getting Started with Tueen Database](/guide/getting-started): Welcome to Tueen Database, the modern, zero-config relational database component tailored specifically for high-throughput Telegram bots.
+  - [📦 Requirements](/guide/getting-started#requirements)
+  - [🚀 Installation](/guide/getting-started#installation)
+  - [⚡ Quick Initialization](/guide/getting-started#quick-initialization)
+    * [1. Zero-Config In-Memory Database (Ideal for Tests & Prototyping)](/guide/getting-started#1-zero-config-in-memory-database-ideal-for-tests-prototyping)
+    * [2. File-Based SQLite Database (Small to Medium Bots)](/guide/getting-started#2-file-based-sqlite-database-small-to-medium-bots)
+    * [3. Production MySQL / MariaDB (High Concurrency Bots)](/guide/getting-started#3-production-mysql-mariadb-high-concurrency-bots)
+  - [💬 Basic Usage Example](/guide/getting-started#basic-usage-example)
+  - [🧭 Next Steps](/guide/getting-started#next-steps)
+- [Architecture & Engine Overview](/guide/architecture): Tueen Database is architected around the principles of high concurrency, zero-maintenance operations, and strict domain boundaries.
+  - [🏛️ Core Architecture Diagram](/guide/architecture#core-architecture-diagram)
+  - [🧩 Key Architectural Principles](/guide/architecture#key-architectural-principles)
+    * [1. Unified Engine Facade (`DatabaseManager`)](/guide/architecture#1-unified-engine-facade-databasemanager)
+    * [2. PHP 8.4 Language Advancements](/guide/architecture#2-php-84-language-advancements)
+    * [3. Telegram Domain Invariants](/guide/architecture#3-telegram-domain-invariants)
+  - [🧭 Next Steps](/guide/architecture#next-steps)
+- [Zero-Config Auto-Migrations](/guide/zero-config-migrations): One of the defining innovations of Tueen Database is its WordPress-style Zero-Config Migration Engine.
+  - [⚡ The Zero-Config Concept](/guide/zero-config-migrations#the-zero-config-concept)
+  - [🔄 How the Lazy Synchronizer Works](/guide/zero-config-migrations#how-the-lazy-synchronizer-works)
+  - [🛡️ Safety Guarantees](/guide/zero-config-migrations#safety-guarantees)
+  - [⚙️ Configuration](/guide/zero-config-migrations#configuration)
+  - [🧭 Next Steps](/guide/zero-config-migrations#next-steps)
+- [Multi-Database Setup](/guide/multi-database): Tueen Database is completely database-agnostic. It abstracts dialect differences so that your bot code, queries, and repositories run identically across SQLite, MySQL, MariaDB, and PostgreSQL.
+  - [🗄️ Supported Database Platforms](/guide/multi-database#supported-database-platforms)
+  - [💻 Configuration Examples](/guide/multi-database#configuration-examples)
+    * [SQLite (In-Memory & File)](/guide/multi-database#sqlite-in-memory-file)
+    * [MySQL / MariaDB](/guide/multi-database#mysql-mariadb)
+    * [PostgreSQL](/guide/multi-database#postgresql)
+  - [🔐 Environment Variables (`.env`)](/guide/multi-database#environment-variables-env)
+  - [🧭 Next Steps](/guide/multi-database#next-steps)
+
+### 💬 Bot Domain & Essentials
+- [Chats & Contacts Management](/guide/chats-and-contacts): The Chat and Contact entities represent the primary actors in the Telegram bot ecosystem, while ChatXp, ChatLike, and ChatRating power social engagement and gamification.
+  - [💬 The `Chat` Entity](/guide/chats-and-contacts#the-chat-entity)
+    * [Chat ID Sign Rule](/guide/chats-and-contacts#chat-id-sign-rule)
+  - [🛠️ The `findOrCreate` Pattern](/guide/chats-and-contacts#the-findorcreate-pattern)
+    * [Automatic Normalization & Touch](/guide/chats-and-contacts#automatic-normalization-touch)
+  - [🪝 PHP 8.4 Property Hooks on `Chat`](/guide/chats-and-contacts#php-84-property-hooks-on-chat)
+  - [📇 User Contacts & Phone Verification (`ContactRepository`)](/guide/chats-and-contacts#user-contacts-phone-verification-contactrepository)
+    * [Using `ContactRepository`](/guide/chats-and-contacts#using-contactrepository)
+  - [🎮 Gamification & Experience Points (`ChatXpRepository`)](/guide/chats-and-contacts#gamification-experience-points-chatxprepository)
+  - [⭐ Social Feedback (`ChatLike` & `ChatRating`)](/guide/chats-and-contacts#social-feedback-chatlike-chatrating)
+  - [🏷️ Chat Metadata (`ChatMeta`)](/guide/chats-and-contacts#chat-metadata-chatmeta)
+  - [🧭 Next Steps](/guide/chats-and-contacts#next-steps)
+- [Wallets & Treasury Ledger](/guide/wallets-and-treasury): Modern Telegram bots frequently handle digital payments, in-bot credits, Telegram Stars, cryptocurrencies (TON, USDT, BTC), or local fiat currencies.
+  - [💰 Arbitrary-Precision Math](/guide/wallets-and-treasury#arbitrary-precision-math)
+  - [💳 Wallet Operations (`WalletRepository`)](/guide/wallets-and-treasury#wallet-operations-walletrepository)
+    * [1. Checking Balances](/guide/wallets-and-treasury#1-checking-balances)
+    * [2. Crediting Funds (Deposits, Rewards)](/guide/wallets-and-treasury#2-crediting-funds-deposits-rewards)
+    * [3. Debiting Funds (Purchases, Fees)](/guide/wallets-and-treasury#3-debiting-funds-purchases-fees)
+    * [4. Atomic Peer-to-Peer Transfers](/guide/wallets-and-treasury#4-atomic-peer-to-peer-transfers)
+    * [5. Balance Freezing & Unfreezing](/guide/wallets-and-treasury#5-balance-freezing-unfreezing)
+  - [💸 Payout Requests & Withdrawals (`WithdrawalRepository`)](/guide/wallets-and-treasury#payout-requests-withdrawals-withdrawalrepository)
+    * [1. Requesting a Withdrawal](/guide/wallets-and-treasury#1-requesting-a-withdrawal)
+    * [2. Processing & Approval Workflow](/guide/wallets-and-treasury#2-processing-approval-workflow)
+    * [3. Lifecycle Statuses (`WithdrawalStatus`)](/guide/wallets-and-treasury#3-lifecycle-statuses-withdrawalstatus)
+  - [🏛️ Bot Treasury (`TreasuryRepository`)](/guide/wallets-and-treasury#bot-treasury-treasuryrepository)
+  - [🧭 Next Steps](/guide/wallets-and-treasury#next-steps)
+- [Orders, Billing & Coupons](/guide/orders-and-coupons): Tueen Database provides a comprehensive billing and commerce engine for Telegram bots selling digital subscriptions, physical goods, services, or VIP access.
+  - [🛍️ The `Order` Lifecycle](/guide/orders-and-coupons#the-order-lifecycle)
+  - [📦 Creating & Managing Orders](/guide/orders-and-coupons#creating-managing-orders)
+    * [1. Creating an Order](/guide/orders-and-coupons#1-creating-an-order)
+    * [2. Marking as Paid](/guide/orders-and-coupons#2-marking-as-paid)
+  - [🎟️ Coupon & Discount Engine](/guide/orders-and-coupons#coupon-discount-engine)
+    * [1. Creating a Coupon](/guide/orders-and-coupons#1-creating-a-coupon)
+    * [2. Applying a Coupon to an Order](/guide/orders-and-coupons#2-applying-a-coupon-to-an-order)
+  - [🧭 Next Steps](/guide/orders-and-coupons#next-steps)
+- [Subscriptions & VIP Access](/guide/subscriptions): Many Telegram bots offer premium memberships, private channel access, or tiered VIP features based on time-limited memberships.
+  - [💎 The `Subscription` Model](/guide/subscriptions#the-subscription-model)
+  - [🛠️ Managing Subscriptions](/guide/subscriptions#managing-subscriptions)
+    * [1. Checking Active Status](/guide/subscriptions#1-checking-active-status)
+    * [2. Granting or Extending Time](/guide/subscriptions#2-granting-or-extending-time)
+  - [📜 Subscription Audit Trail (`SubscriptionTransaction`)](/guide/subscriptions#subscription-audit-trail-subscriptiontransaction)
+  - [🧭 Next Steps](/guide/subscriptions#next-steps)
+- [Telegram Mini App (TMA) Sessions & Auth 🌐](/guide/mini-app-sessions): Tueen Database provides a built-in, production-grade session management and authentication layer tailored specifically for Telegram Mini Apps (TMAs) and WebApps.
+  - [🏛️ Architecture Overview](/guide/mini-app-sessions#architecture-overview)
+  - [⚡ Creating a TMA Session](/guide/mini-app-sessions#creating-a-tma-session)
+  - [🔐 Authenticating Requests](/guide/mini-app-sessions#authenticating-requests)
+  - [🚪 Session Revocation & Logout](/guide/mini-app-sessions#session-revocation-logout)
+    * [Revoking a Single Session (Logout)](/guide/mini-app-sessions#revoking-a-single-session-logout)
+    * [Revoking All Sessions (Logout Everywhere)](/guide/mini-app-sessions#revoking-all-sessions-logout-everywhere)
+    * [Listing Active Devices/Sessions](/guide/mini-app-sessions#listing-active-devicessessions)
+  - [🧹 Maintenance & Housekeeping](/guide/mini-app-sessions#maintenance-housekeeping)
+  - [🪝 PHP 8.4 Virtual Property Hooks](/guide/mini-app-sessions#php-84-virtual-property-hooks)
+- [High-Volume Broadcast Engine](/guide/broadcast-engine): Broadcasting messages to thousands or millions of Telegram chats requires reliable chunking, offset tracking, chat type filtering, and real-time delivery telemetry.
+  - [📢 The `BroadcastMessage` Entity](/guide/broadcast-engine#the-broadcastmessage-entity)
+    * [Key Attributes:](/guide/broadcast-engine#key-attributes)
+  - [🛠️ Executing a Broadcast Campaign](/guide/broadcast-engine#executing-a-broadcast-campaign)
+    * [1. Creating the Broadcast](/guide/broadcast-engine#1-creating-the-broadcast)
+    * [2. Chunked Delivery Loop (Worker Job)](/guide/broadcast-engine#2-chunked-delivery-loop-worker-job)
+  - [🧭 Next Steps](/guide/broadcast-engine#next-steps)
+- [Content Entities, CMS & Message Relays](/guide/content-entities): Beyond user profiles and payments, Telegram bots often manage structured content catalogs (shop products, FAQs, blog articles, support tickets) and cross-chat communication relays.
+  - [🗃️ The `EntityItem` Model & Repository](/guide/content-entities#the-entityitem-model-repository)
+    * [1. Creating and Querying Content Items](/guide/content-entities#1-creating-and-querying-content-items)
+    * [2. Social Feedback (`like` & `rate`)](/guide/content-entities#2-social-feedback-like-rate)
+  - [📬 Cross-Chat Message Relays (`MessageRelayRepository`)](/guide/content-entities#cross-chat-message-relays-messagerelayrepository)
+    * [Code Example: Implementing the Relay](/guide/content-entities#code-example-implementing-the-relay)
+  - [🧭 Next Steps](/guide/content-entities#next-steps)
+- [Options, Cache & Data Store](/guide/options-and-cache): Telegram bots manage three distinct categories of auxiliary state:
+  - [⚙️ Global Bot Settings (`OptionRepository`)](/guide/options-and-cache#global-bot-settings-optionrepository)
+    * [1. Reading and Writing Options](/guide/options-and-cache#1-reading-and-writing-options)
+    * [2. Built-in In-Memory Caching](/guide/options-and-cache#2-built-in-in-memory-caching)
+  - [📦 PSR-16 SimpleCache (`CacheRepository`)](/guide/options-and-cache#psr-16-simplecache-cacherepository)
+  - [🗄️ Scoped & Binary Data Store (`DataRepository`)](/guide/options-and-cache#scoped-binary-data-store-datarepository)
+  - [🧭 Next Steps](/guide/options-and-cache#next-steps)
+- [Audit Trails & Histories](/guide/audit-histories): In multi-user bots and financial systems, maintaining a verifiable audit trail of every administrative action, balance adjustment, and state transition is essential.
+  - [📜 The `History` Model](/guide/audit-histories#the-history-model)
+  - [🛠️ Logging Audit Events](/guide/audit-histories#logging-audit-events)
+    * [Retrieving Timeline History](/guide/audit-histories#retrieving-timeline-history)
+  - [🧭 Next Steps](/guide/audit-histories#next-steps)
+
+### 🛡️ Advanced & Operations
+- [Caching & Performance Tuning](/guide/caching-and-performance): High-throughput Telegram bots process hundreds of webhooks per second during viral events, marketing campaigns, or active chat group discussions.
+  - [🏎️ Multi-Tier Caching Architecture](/guide/caching-and-performance#multi-tier-caching-architecture)
+    * [Tier 1: Process-Level In-Memory Cache](/guide/caching-and-performance#tier-1-process-level-in-memory-cache)
+    * [Tier 2: Doctrine ORM Metadata & Query Cache](/guide/caching-and-performance#tier-2-doctrine-orm-metadata-query-cache)
+  - [🗄️ Database-Specific Hardening](/guide/caching-and-performance#database-specific-hardening)
+    * [SQLite Concurrency Hardening](/guide/caching-and-performance#sqlite-concurrency-hardening)
+    * [MySQL Index Optimizations](/guide/caching-and-performance#mysql-index-optimizations)
+  - [🧭 Next Steps](/guide/caching-and-performance#next-steps)
+- [CLI Tooling (`tueen-db`)](/guide/cli-tooling): Tueen Database ships with a built-in command-line console executable: bin/tueen-db.
+  - [🛠️ Available Commands](/guide/cli-tooling#available-commands)
+  - [💻 Command Reference & Usage](/guide/cli-tooling#command-reference-usage)
+    * [Validating Mappings & Schema (`tueen:db:validate`)](/guide/cli-tooling#validating-mappings-schema-tueendbvalidate)
+    * [Inspecting Engine Status (`tueen:db:status`)](/guide/cli-tooling#inspecting-engine-status-tueendbstatus)
+    * [Synchronizing Schema (`tueen:db:sync`)](/guide/cli-tooling#synchronizing-schema-tueendbsync)
+  - [🧭 Next Steps](/guide/cli-tooling#next-steps)
+- [Extending Entities & Custom Migrations](/guide/extending): Tueen Database is built for modular bot ecosystems. Third-party packages, plugins, or your own bot application can easily register new entities, custom tables, and custom migrations.
+  - [🧩 Registering Custom Entity Paths](/guide/extending#registering-custom-entity-paths)
+  - [📜 Registering Custom Migration Paths](/guide/extending#registering-custom-migration-paths)
+  - [✍️ Example Custom Migration](/guide/extending#example-custom-migration)
+  - [🧭 Next Steps](/guide/extending#next-steps)
+- [Symfony DI & Events](/guide/symfony-integration): Tueen Database integrates seamlessly with Symfony components, including DependencyInjection, EventDispatcher, Validator, Serializer, and Security.
+  - [🔌 Symfony DependencyInjection](/guide/symfony-integration#symfony-dependencyinjection)
+  - [📢 Domain Events (`EventDispatcher`)](/guide/symfony-integration#domain-events-eventdispatcher)
+    * [Listening to Events](/guide/symfony-integration#listening-to-events)
+  - [🧭 Next Steps](/guide/symfony-integration#next-steps)
+
+### 📖 API Catalog & Reference
+- [Entity Models Catalog](/reference/entities): Tueen Database provides 22+ specialized domain models optimized for Telegram bots.
+  - [🏛️ Entity & Table Summary](/reference/entities#entity-table-summary)
+  - [🪝 PHP 8.4 Property Hooks Reference](/reference/entities#php-84-property-hooks-reference)
+- [Domain Repositories Reference](/reference/repositories): Tueen Database provides rich repository classes accessible via fluent methods on DatabaseManager.
+  - [🏛️ Repositories Overview](/reference/repositories#repositories-overview)
+  - [💻 Essential Method Signatures](/reference/repositories#essential-method-signatures)
+    * [`ChatRepository`](/reference/repositories#chatrepository)
+    * [`ContactRepository`](/reference/repositories#contactrepository)
+    * [`ChatXpRepository`](/reference/repositories#chatxprepository)
+    * [`WalletRepository`](/reference/repositories#walletrepository)
+    * [`WithdrawalRepository`](/reference/repositories#withdrawalrepository)
+    * [`TreasuryRepository`](/reference/repositories#treasuryrepository)
+    * [`OrderRepository`](/reference/repositories#orderrepository)
+    * [`CouponRepository`](/reference/repositories#couponrepository)
+    * [`SubscriptionRepository`](/reference/repositories#subscriptionrepository)
+    * [`BroadcastRepository`](/reference/repositories#broadcastrepository)
+    * [`ReferralRepository`](/reference/repositories#referralrepository)
+    * [`EntityItemRepository` (CMS)](/reference/repositories#entityitemrepository-cms)
+    * [`MessageRelayRepository`](/reference/repositories#messagerelayrepository)
+    * [`OptionRepository`](/reference/repositories#optionrepository)
+    * [`CacheRepository` (PSR-16)](/reference/repositories#cacherepository-psr-16)
+    * [`DataRepository`](/reference/repositories#datarepository)
+    * [`TmaSessionRepository`](/reference/repositories#tmasessionrepository)
+    * [`HistoryRepository`](/reference/repositories#historyrepository)
+- [Enums & Value Objects Reference](/reference/enums): Tueen Database utilizes native backed string enums for type safety, validation, and database storage.
+  - [🏛️ Enum Catalog](/reference/enums#enum-catalog)
+    * [1. `ChatType` (`Tueen\Database\Enum\ChatType`)](/reference/enums#1-chattype-tueendatabaseenumchattype)
+    * [2. `OrderStatus` (`Tueen\Database\Enum\OrderStatus`)](/reference/enums#2-orderstatus-tueendatabaseenumorderstatus)
+    * [3. `BroadcastStatus` (`Tueen\Database\Enum\BroadcastStatus`)](/reference/enums#3-broadcaststatus-tueendatabaseenumbroadcaststatus)
+    * [4. `CouponType` & `CouponStatus`](/reference/enums#4-coupontype-couponstatus)
+    * [5. `TaxMode` (`Tueen\Database\Enum\TaxMode`)](/reference/enums#5-taxmode-tueendatabaseenumtaxmode)
+    * [6. `ReferralStatus` (`Tueen\Database\Enum\ReferralStatus`)](/reference/enums#6-referralstatus-tueendatabaseenumreferralstatus)
+    * [7. `WithdrawalStatus` (`Tueen\Database\Enum\WithdrawalStatus`)](/reference/enums#7-withdrawalstatus-tueendatabaseenumwithdrawalstatus)
+
+## Downloadable Packages, Full Context & Source Code
+- [Download Complete Agent Skill ZIP](/tueen-database.zip): Standalone skill folder (tueen-database/) with SKILL.md and offline docs/.
+- [Full Documentation (Single Context)](/llms-full.txt): Complete, concatenated markdown documentation for one-shot LLM ingestion.
+- [GitHub Repository (Source Code, Tests & Examples)](https://github.com/tueen/database): Official GitHub repository for source code inspection, test suites, and issue tracking when documentation is insufficient.

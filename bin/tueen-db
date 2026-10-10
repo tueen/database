@@ -1,0 +1,53 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+// Locate Composer autoloader
+$autoloaderPaths = [
+    __DIR__ . '/../vendor/autoload.php',
+    __DIR__ . '/../../../autoload.php',
+];
+
+$autoloaderFound = false;
+foreach ($autoloaderPaths as $path) {
+    if (file_exists($path)) {
+        require_once $path;
+        $autoloaderFound = true;
+        break;
+    }
+}
+
+if (!$autoloaderFound) {
+    fwrite(STDERR, "Error: Composer autoload.php not found. Run 'composer install'.\n");
+    exit(1);
+}
+
+use Symfony\Component\Console\Application;
+use Tueen\Database\Command\CacheClearCommand;
+use Tueen\Database\Command\DiffCommand;
+use Tueen\Database\Command\StatusCommand;
+use Tueen\Database\Command\SyncCommand;
+use Tueen\Database\Command\ValidateSchemaCommand;
+use Tueen\Database\Config\DatabaseConfig;
+use Tueen\Database\DatabaseManager;
+
+$configPath = getcwd() . '/config/database.php';
+if (file_exists($configPath)) {
+    $config = require $configPath;
+} else {
+    $config = DatabaseConfig::createSqlite(getcwd() . '/var/database.sqlite');
+}
+
+$dbManager = new DatabaseManager($config);
+
+$app = new Application('Tueen Database CLI', '1.0.0');
+$app->addCommands([
+    new SyncCommand($dbManager),
+    new DiffCommand($dbManager),
+    new StatusCommand($dbManager),
+    new ValidateSchemaCommand($dbManager),
+    new CacheClearCommand($dbManager),
+]);
+
+$app->run();

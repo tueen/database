@@ -1,0 +1,9 @@
+parameters:
+    level: 8
+    paths:
+        - src
+        - tests
+    treatPhpDocTypesAsCertain: false
+    ignoreErrors:
+        - '#Parameter \#\d+ \$\S+ of function (bcadd|bcsub|bccomp|bcmul|bcdiv) expects numeric-string, string given\.#'
+        - '#Using nullsafe property access "\?->balance" on left side of \?\? is unnecessary\. Use -> instead\.#'

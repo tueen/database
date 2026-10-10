@@ -1,0 +1,23 @@
+/vendor/
+/var/
+/.phpunit.cache/
+/.php-cs-fixer.cache
+/.phpstan.cache/
+.env
+.env.local
+.env.*.local
+*.sqlite
+*.sqlite3
+
+# VitePress & Node
+/docs/node_modules/
+/docs/.vitepress/cache/
+/docs/.vitepress/dist/
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

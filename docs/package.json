@@ -1,0 +1,17 @@
+{
+  "name": "tueen-database-docs",
+  "version": "1.0.0-alpha.1",
+  "description": "Documentation for Tueen Database",
+  "type": "module",
+  "scripts": {
+    "docs:dev": "vitepress dev --host 127.0.0.1",
+    "docs:build": "vitepress build --host 127.0.0.1",
+    "docs:preview": "vitepress preview --host 127.0.0.1",
+    "generate:llms": "node scripts/generate-llms.mjs"
+  },
+  "devDependencies": {
+    "jszip": "^3.10.2",
+    "vitepress": "^1.5.0",
+    "vue": "^3.5.0"
+  }
+}

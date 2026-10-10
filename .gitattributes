@@ -1,0 +1,26 @@
+# Git attributes for tueen/database
+# Force Unix line endings in archives and working tree for text files
+* text=auto eol=lf
+*.bat text eol=crlf
+
+# Composer / Packagist export ignore (files and directories excluded from release archives)
+/.agents/ export-ignore
+/.idea/ export-ignore
+/.vscode/ export-ignore
+/.phpunit.cache/ export-ignore
+/.php-cs-fixer.cache export-ignore
+/.phpstan.cache/ export-ignore
+
+/art/ export-ignore
+/docs/ export-ignore
+/tests/ export-ignore
+/var/ export-ignore
+
+/.env.example export-ignore
+/.gitattributes export-ignore
+/.gitignore export-ignore
+/.php-cs-fixer.dist.php export-ignore
+/AGENTS.md export-ignore
+/phpstan.neon export-ignore
+/phpunit.xml.dist export-ignore
+/rector.php export-ignore

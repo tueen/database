@@ -1,0 +1,2503 @@
+# tueen/database — Full Documentation Context
+# The Zero-Config, High-Throughput Relational Engine for Modern Telegram Bots (PHP 8.4+)
+# Official Repository: https://github.com/tueen/database
+# Documentation Base URL: https://database.tueen.dev/
+#
+# Note for AI Models: If any detail, method signature, or edge-case behavior is not
+# fully covered in this documentation, consult the official GitHub repository:
+# https://github.com/tueen/database
+
+
+
+# ==============================================================================
+# File: /guide/getting-started
+# Section: 🚀 Getting Started > Getting Started with Tueen Database
+# ==============================================================================
+
+# Getting Started with Tueen Database
+
+Welcome to **Tueen Database**, the modern, zero-config relational database component tailored specifically for high-throughput Telegram bots.
+
+---
+
+## 📦 Requirements
+
+- **PHP 8.4 or higher** (Supports PHP 8.4, 8.5+)
+- **PDO Extension** (`pdo_sqlite`, `pdo_mysql`, or `pdo_pgsql`)
+- **BCMath Extension** (for arbitrary-precision currency math)
+- **Composer 2.x**
+
+---
+
+## 🚀 Installation
+
+Install the package via Composer into your Telegram bot project:
+
+```bash
+composer require tueen/database
+```
+
+---
+
+## ⚡ Quick Initialization
+
+Tueen Database operates with zero configuration out of the box. By default, it automatically manages schema synchronization without requiring you to manually run migration scripts.
+
+### 1. Zero-Config In-Memory Database (Ideal for Tests & Prototyping)
+
+```php
+use Tueen\Database\Config\DatabaseConfig;
+use Tueen\Database\DatabaseManager;
+
+$db = DatabaseManager::create(
+    DatabaseConfig::createSqlite(':memory:')
+);
+```
+
+### 2. File-Based SQLite Database (Small to Medium Bots)
+
+```php
+use Tueen\Database\Config\DatabaseConfig;
+use Tueen\Database\DatabaseManager;
+
+$db = DatabaseManager::create(
+    DatabaseConfig::createSqlite(__DIR__ . '/var/bot.sqlite')
+);
+```
+
+### 3. Production MySQL / MariaDB (High Concurrency Bots)
+
+```php
+use Tueen\Database\Config\DatabaseConfig;
+use Tueen\Database\DatabaseManager;
+
+$db = DatabaseManager::create(
+    DatabaseConfig::createMysql(
+        dbname: 'telegram_bot',
+        user: 'bot_admin',
+        password: 'secure_password',
+        host: '127.0.0.1',
+        port: 3306,
+    )
+);
+```
+
+---
+
+## 💬 Basic Usage Example
+
+Here is how you handle user interactions and ledger operations in your bot's webhook or polling loop:
+
+```php
+use Tueen\Database\Enum\ChatType;
+
+// Fetch or register a user when they send /start
+$chat = $db->chats()->findOrCreate(
+    chatId: $update['message']['chat']['id'],
+    username: $update['message']['chat']['username'] ?? null,
+    name: $update['message']['chat']['first_name'] ?? 'User',
+    type: ChatType::Private,
+    languageCode: $update['message']['from']['language_code'] ?? 'en',
+);
+
+// Greet the user using PHP 8.4 property hooks
+echo "Welcome back, {$chat->displayName}!\n";
+
+// Credit 50 Stars or Points to their multi-currency wallet
+$tx = $db->wallets()->credit(
+    chat: $chat,
+    amount: '50.000000000000000000',
+    currency: 'STARS',
+    source: 'daily_reward',
+);
+
+echo "New STARS Balance: " . $db->wallets()->getBalance($chat, 'STARS') . "\n";
+```
+
+---
+
+## 🧭 Next Steps
+
+- Explore the **[Architecture & Engine Overview](/guide/architecture)** to understand the internal design.
+- Learn how **[Zero-Config Auto-Migrations](/guide/zero-config-migrations)** work under the hood.
+- Review the complete **[Entity Models Catalog](/reference/entities)**.
+
+
+# ==============================================================================
+# File: /guide/architecture
+# Section: 🚀 Getting Started > Architecture & Engine Overview
+# ==============================================================================
+
+# Architecture & Engine Overview
+
+Tueen Database is architected around the principles of high concurrency, zero-maintenance operations, and strict domain boundaries.
+
+---
+
+## 🏛️ Core Architecture Diagram
+
+The diagram below illustrates how incoming Telegram updates flow through the Tueen Database layer:
+
+```mermaid
+flowchart TD
+    Bot["Telegram Bot Controller / Webhook"] --> DM["DatabaseManager (Facade)"]
+    
+    subgraph "Engine Core"
+        DM --> EM["Doctrine EntityManager 3.x"]
+        DM --> Conn["DBAL Connection"]
+        DM --> AutoMig["AutoMigrator (Lazy Sync)"]
+        DM --> Cache["PSR-16 / PSR-6 Cache Layer"]
+        DM --> EventD["Symfony EventDispatcher"]
+    end
+    
+    subgraph "Domain Repositories"
+        DM --> ChatsRepo["ChatRepository"]
+        DM --> WalletsRepo["WalletRepository"]
+        DM --> OrdersRepo["OrderRepository"]
+        DM --> SubsRepo["SubscriptionRepository"]
+        DM --> BroadcastRepo["BroadcastRepository"]
+        DM --> OptionsRepo["OptionRepository"]
+    end
+
+    subgraph "Database Engines"
+        Conn --> SQLite["SQLite (File / Memory)"]
+        Conn --> MySQL["MySQL / MariaDB"]
+        Conn --> Postgres["PostgreSQL"]
+    end
+```
+
+---
+
+## 🧩 Key Architectural Principles
+
+### 1. Unified Engine Facade (`DatabaseManager`)
+The `DatabaseManager` acts as the single entry point. It manages:
+- **Connection pooling & platform configuration** (SQLite WAL concurrency, MySQL `utf8mb4`, PostgreSQL search paths).
+- **Doctrine EntityManager bootstrapping** with attribute mapping and PHP 8.4 native lazy ghost objects.
+- **Zero-config auto-migration checking** on boot or first repository access.
+- **Fluent access to domain repositories** (`$db->chats()`, `$db->wallets()`, etc.).
+
+### 2. PHP 8.4 Language Advancements
+Tueen Database was designed from the ground up for modern PHP 8.4+:
+- **Property Hooks:** Computed values (e.g. `$chat->displayName`, `$order->totalAmount`, `$withdrawal->netIncome`, `$subscription->isActive`) are computed directly on property read, avoiding verbose getter boilerplate.
+- **Asymmetric Visibility:** Identifier fields (`public private(set) int $id`) are publicly readable throughout the app, but cannot be accidentally mutated outside entity lifecycle methods.
+- **Native Lazy Objects:** Eliminates legacy proxy generation files and memory bloat by delegating proxy mechanics directly to the PHP 8.4 engine.
+
+### 3. Telegram Domain Invariants
+- **Signed 64-bit BigInts:** Telegram chat IDs for channels, supergroups, and groups are negative numbers (e.g. `-100192837465`). Using unsigned integers causes database truncation or overflow. Tueen Database enforces signed 64-bit integer columns across all platforms.
+- **Emoji & Multi-Byte Text:** All textual fields default to `utf8mb4` character set and collation, ensuring seamless storage of custom Telegram emojis and multi-language usernames.
+
+---
+
+## 🧭 Next Steps
+
+- Understand how **[Zero-Config Auto-Migrations](/guide/zero-config-migrations)** eliminate manual schema management.
+- Configure **[Multi-Database Connections](/guide/multi-database)** for your infrastructure.
+
+
+# ==============================================================================
+# File: /guide/zero-config-migrations
+# Section: 🚀 Getting Started > Zero-Config Auto-Migrations
+# ==============================================================================
+
+# Zero-Config Auto-Migrations
+
+One of the defining innovations of Tueen Database is its **WordPress-style Zero-Config Migration Engine**.
+
+---
+
+## ⚡ The Zero-Config Concept
+
+In traditional database frameworks, developers and server administrators must run CLI commands (such as `doctrine-migrations migrations:migrate` or `php artisan migrate`) whenever tables are added or modified. For Telegram bots, bot hosting panels, or plug-and-play plugins, this creates unnecessary operational friction.
+
+WordPress famously solves this with `dbDelta()`: on plugin boot or admin access, WordPress checks the current database schema and applies required changes automatically.
+
+Tueen Database brings this exact zero-config experience to modern PHP 8.4 and Doctrine ORM 3.
+
+---
+
+## 🔄 How the Lazy Synchronizer Works
+
+When `DatabaseManager` boots or any repository is queried:
+
+```mermaid
+sequenceDiagram
+    participant App as Bot Application
+    participant DM as DatabaseManager
+    participant AM as AutoMigrator
+    participant SS as SchemaSynchronizer
+    participant DB as Live Database
+
+    App->>DM: $db->chats()->findOrCreate(...)
+    DM->>AM: autoMigrate()
+    Note over AM: Has this instance migrated?
+    AM->>SS: getPendingSql()
+    SS->>DB: Inspect live tables & columns
+    DB-->>SS: Table metadata
+    SS-->>AM: List of diff SQL statements
+    alt Schema is out of sync
+        AM->>SS: sync(safeMode: true)
+        SS->>DB: Execute non-destructive DDL
+        AM->>DM: Dispatch MigrationExecutedEvent
+    end
+    DM-->>App: Return ChatRepository & execute query
+```
+
+---
+
+## 🛡️ Safety Guarantees
+
+1. **Safe-Mode DDL Only:**
+   - `SchemaSynchronizer` executes in safe mode (`safeMode: true`). It will create missing tables, add new columns, and add new indexes.
+   - It will **never** drop existing tables, columns, or foreign keys that might belong to other bot modules or legacy data.
+2. **In-Memory Concurrency Caching:**
+   - Once an application process has verified the schema, subsequent queries bypass the schema comparison, ensuring zero performance overhead on subsequent updates.
+3. **Pluggable Migrations:**
+   - Traditional versioned migrations (`Doctrine\Migrations\AbstractMigration`) are also supported via `migrations/` and the `tueen:db:migrate` CLI command for teams running automated CI/CD deployment pipelines.
+
+---
+
+## ⚙️ Configuration
+
+Auto-migration is enabled by default. You can control this behavior via `DatabaseConfig`:
+
+```php
+use Tueen\Database\Config\DatabaseConfig;
+
+$config = DatabaseConfig::createMysql(
+    dbname: 'telegram_bot',
+    user: 'bot_admin',
+    password: 'secret',
+    autoMigrate: true, // Set to false to disable zero-config auto-migration in strict production
+);
+```
+
+---
+
+## 🧭 Next Steps
+
+- Learn about **[Multi-Database Setup](/guide/multi-database)** for MySQL, PostgreSQL, and SQLite.
+- Explore the **[CLI Tooling](/guide/cli-tooling)** to inspect schema differences via command line.
+
+
+# ==============================================================================
+# File: /guide/multi-database
+# Section: 🚀 Getting Started > Multi-Database Setup
+# ==============================================================================
+
+# Multi-Database Setup
+
+Tueen Database is completely database-agnostic. It abstracts dialect differences so that your bot code, queries, and repositories run identically across SQLite, MySQL, MariaDB, and PostgreSQL.
+
+---
+
+## 🗄️ Supported Database Platforms
+
+| Database Platform | Best For | Recommended Driver | Zero-Config Support |
+| :--- | :--- | :--- | :--- |
+| **SQLite (In-Memory)** | Automated testing, unit tests, ephemeral bots | `pdo_sqlite` | Full |
+| **SQLite (File)** | Small to medium Telegram bots, single-server setups | `pdo_sqlite` | Full (Auto directory creation + WAL mode) |
+| **MySQL 8.0+ / MariaDB** | High-throughput production, large bot userbases | `pdo_mysql` | Full (`utf8mb4_unicode_ci`) |
+| **PostgreSQL 14+** | Enterprise bots, advanced JSONB indexing | `pdo_pgsql` | Full |
+
+---
+
+## 💻 Configuration Examples
+
+### SQLite (In-Memory & File)
+
+SQLite requires zero external server setup:
+
+```php
+use Tueen\Database\Config\DatabaseConfig;
+use Tueen\Database\DatabaseManager;
+
+// In-Memory SQLite (great for unit and functional tests)
+$db = DatabaseManager::create(DatabaseConfig::createSqlite(':memory:'));
+
+// File-based SQLite (creates the directory and enables WAL mode automatically)
+$db = DatabaseManager::create(DatabaseConfig::createSqlite(__DIR__ . '/var/bot.sqlite'));
+```
+
+::: tip SQLite Concurrency
+When using file-based SQLite, Tueen Database automatically applies:
+- `PRAGMA foreign_keys = ON;`
+- `PRAGMA busy_timeout = 5000;`
+- `PRAGMA journal_mode = WAL;` (Write-Ahead Logging)
+
+This allows multiple concurrent bot processes or webhook requests to read and write without `database is locked` errors.
+:::
+
+---
+
+### MySQL / MariaDB
+
+For high-volume production deployments:
+
+```php
+use Tueen\Database\Config\DatabaseConfig;
+use Tueen\Database\DatabaseManager;
+
+$db = DatabaseManager::create(
+    DatabaseConfig::createMysql(
+        dbname: 'telegram_bot',
+        user: 'bot_admin',
+        password: 'secure_password',
+        host: '127.0.0.1',
+        port: 3306,
+        charset: 'utf8mb4',
+    )
+);
+```
+
+---
+
+### PostgreSQL
+
+For enterprise deployments requiring advanced relational constraints:
+
+```php
+use Tueen\Database\Config\DatabaseConfig;
+use Tueen\Database\DatabaseManager;
+
+$db = DatabaseManager::create(
+    DatabaseConfig::createPostgres(
+        dbname: 'telegram_bot',
+        user: 'postgres',
+        password: 'secret_password',
+        host: '127.0.0.1',
+        port: 5432,
+    )
+);
+```
+
+---
+
+## 🔐 Environment Variables (`.env`)
+
+Tueen Database supports zero-config loading from `.env` files via `CredentialManager`:
+
+```ini
+# .env
+DB_DRIVER=pdo_mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=telegram_bot
+DB_USER=bot_admin
+DB_PASSWORD=secret_password
+DB_AUTO_MIGRATE=true
+```
+
+When `config/database.php` is loaded or CLI commands are run, the configuration is resolved automatically from the environment.
+
+---
+
+## 🧭 Next Steps
+
+- Explore **[Chats & Contacts Management](/guide/chats-and-contacts)**.
+- Learn about the **[Wallets & Treasury Ledger](/guide/wallets-and-treasury)**.
+
+
+# ==============================================================================
+# File: /guide/chats-and-contacts
+# Section: 💬 Bot Domain & Essentials > Chats & Contacts Management
+# ==============================================================================
+
+# Chats & Contacts Management
+
+The **`Chat`** and **`Contact`** entities represent the primary actors in the Telegram bot ecosystem, while **`ChatXp`**, **`ChatLike`**, and **`ChatRating`** power social engagement and gamification.
+
+---
+
+## 💬 The `Chat` Entity
+
+Telegram represents users, basic groups, supergroups, and channels through a single entity: the **Chat**.
+
+### Chat ID Sign Rule
+- **Private Users:** Have positive IDs (e.g. `123456789`).
+- **Groups, Supergroups & Channels:** Have negative IDs (e.g. `-1001987654321`).
+
+Tueen Database maps `Chat.id` as a signed 64-bit `bigint`, fully accommodating both positive user IDs and negative supergroup/channel IDs.
+
+---
+
+## 🛠️ The `findOrCreate` Pattern
+
+The most frequent operation in any Telegram bot is registering a chat on the first message or update. `ChatRepository::findOrCreate()` handles this atomically:
+
+```php
+use Tueen\Database\Enum\ChatType;
+
+$chat = $db->chats()->findOrCreate(
+    chatId: $update['message']['chat']['id'],
+    username: $update['message']['chat']['username'] ?? null,
+    name: $update['message']['chat']['first_name'] ?? 'User',
+    type: ChatType::Private,
+    languageCode: $update['message']['from']['language_code'] ?? 'en',
+);
+```
+
+### Automatic Normalization & Touch
+- **Username Cleaning:** Leading `@` characters are automatically stripped via PHP 8.4 backed property hooks (`set => ...`).
+- **Touch Active Time:** Calling `findOrCreate()` on an existing chat automatically updates `activeAt` and `updatedAt`.
+- **Name / Language Synchronization:** If the user changed their Telegram name or language, `findOrCreate()` updates the database record automatically.
+
+---
+
+## 🪝 PHP 8.4 Property Hooks on `Chat`
+
+The `Chat` model includes several convenient virtual property hooks:
+
+```php
+// Check chat types directly
+if ($chat->isPrivate) {
+    // 1-on-1 private conversation
+}
+
+if ($chat->isGroupOrSupergroup) {
+    // Community group
+}
+
+if ($chat->isChannel) {
+    // Broadcast channel
+}
+
+// Display Name helper
+echo "Hello, " . $chat->displayName; // Returns name, or @username, or chat ID
+
+// Message delivery status check
+if ($chat->canReceiveMessages) {
+    // True only if accessible = true AND banned = false
+}
+```
+
+---
+
+## 📇 User Contacts & Phone Verification (`ContactRepository`)
+
+The **`Contact`** entity stores verified phone numbers and identity details for Telegram users. 
+
+Contact records can originate from multiple sources:
+- **Telegram Native Contact Sharing:** When a user taps a keyboard button requesting contact (`request_contact: true`) or forwards a native contact card (`message.contact`).
+- **Telegram Mini Apps (TMA):** Phone numbers requested and verified through WebApp dialogs.
+- **Manual Input & OTP Verification:** Numbers entered via conversational bot steps or SMS flows.
+
+### Using `ContactRepository`
+
+```php
+// 1. Save or update contact details
+$contact = $db->contacts()->saveContact(
+    user: $chat,
+    phoneNumber: '+1 (987) 654-3210', // Automatically stripped to pure digits: 19876543210
+    firstName: 'Alice',
+    lastName: 'Smith',
+);
+
+echo "Registered: {$contact->fullName} ({$contact->phoneNumber})\n";
+
+// 2. Lookup user by verified phone number
+$existing = $db->contacts()->findByPhoneNumber('19876543210');
+if ($existing !== null) {
+    echo "Found user with chat ID: {$existing->user->id}\n";
+}
+
+// 3. Lookup contact for a specific chat
+$userContact = $db->contacts()->findByChat($chat);
+```
+
+> [!TIP]
+> **Automatic Phone Normalization:**
+> `Contact::$phoneNumber` utilizes a native PHP 8.4 backed property hook (`set => (string) preg_replace('/\D+/', '', $value)`) that automatically strips non-digit characters (`+`, spaces, dashes, parentheses). This ensures clean, uniform phone numbers for database lookups and SMS gateways.
+
+---
+
+## 🎮 Gamification & Experience Points (`ChatXpRepository`)
+
+Telegram bots frequently reward users with experience points (XP) for sending messages, inviting friends, completing tasks, or participating in quizzes.
+
+Tueen Database provides an atomic XP engine with an immutable transaction audit log:
+
+```php
+// 1. Award XP points for an activity
+$tx = $db->chatXp()->addXp(
+    chat: $chat,
+    amount: 100,
+    source: 'daily_quest',
+    sourceId: 42,
+);
+
+echo "Awarded: {$tx->value} XP\n";
+echo "XP Before: {$tx->xpBefore} | XP After: {$tx->xpAfter}\n";
+
+// 2. Query current XP
+$currentXp = $db->chatXp()->getXp($chat);
+
+// 3. Deduct XP (e.g. penalty or spent points)
+$deductTx = $db->chatXp()->deductXp($chat, 25, 'store_redemption');
+
+// 4. Fetch the Community Leaderboard
+$topUsers = $db->chatXp()->getLeaderboard(limit: 10);
+foreach ($topUsers as $rank => $entry) {
+    echo "#" . ($rank + 1) . " {$entry->chat->displayName}: {$entry->xp} XP\n";
+}
+```
+
+---
+
+## ⭐ Social Feedback (`ChatLike` & `ChatRating`)
+
+Build social and community features (user reputations, admin karma, peer ratings) between chats:
+
+```php
+use Tueen\Database\Entity\ChatLike;
+use Tueen\Database\Entity\ChatRating;
+
+// 1. User A likes User B's profile
+$like = new ChatLike(
+    fromChat: $senderChat,
+    toChat: $targetChat,
+);
+$db->getEntityManager()->persist($like);
+
+// 2. User A rates User B (e.g. 95 out of 100)
+$rating = new ChatRating(
+    fromChat: $senderChat,
+    toChat: $targetChat,
+    rating: 95,
+);
+$db->getEntityManager()->persist($rating);
+
+$db->getEntityManager()->flush();
+```
+
+---
+
+## 🏷️ Chat Metadata (`ChatMeta`)
+
+Attach arbitrary JSON or typed metadata to any chat (settings, onboarding progress, preferences):
+
+```php
+use Tueen\Database\Entity\ChatMeta;
+
+$meta = new ChatMeta(
+    chat: $chat,
+    metaKey: 'notification_settings',
+    value: ['sound' => true, 'frequency' => 'daily'],
+    group: 'preferences',
+);
+
+$db->getEntityManager()->persist($meta);
+$db->getEntityManager()->flush();
+```
+
+---
+
+## 🧭 Next Steps
+
+- Manage bot finances with **[Wallets & Treasury Ledger](/guide/wallets-and-treasury)**.
+- Implement **[E-Commerce Orders & Billing](/guide/orders-and-coupons)**.
+- Connect Mini Apps with **[Mini App Sessions & Auth](/guide/mini-app-sessions)**.
+
+
+# ==============================================================================
+# File: /guide/wallets-and-treasury
+# Section: 💬 Bot Domain & Essentials > Wallets & Treasury Ledger
+# ==============================================================================
+
+# Wallets & Treasury Ledger
+
+Modern Telegram bots frequently handle digital payments, in-bot credits, Telegram Stars, cryptocurrencies (TON, USDT, BTC), or local fiat currencies.
+
+Tueen Database includes a complete, arbitrary-precision multi-currency ledger with double-entry transaction auditing, payout withdrawals, and balance freezing.
+
+---
+
+## 💰 Arbitrary-Precision Math
+
+All financial amounts are stored as `DECIMAL(36, 18)` (or `40, 18`) and handled as strings in PHP.
+
+::: danger Never Use Floating-Point Math
+Floating-point math in PHP (`$amount1 + $amount2`) introduces rounding errors (e.g. `0.1 + 0.2 = 0.30000000000000004`). In financial bot transactions, this can lead to balance discrepancies or exploit vulnerabilities. Tueen Database internally utilizes **BCMath** for all arithmetic.
+:::
+
+---
+
+## 💳 Wallet Operations (`WalletRepository`)
+
+The `WalletRepository` provides atomic methods that guarantee balance safety:
+
+### 1. Checking Balances
+
+```php
+// Check user's default balance (defaults to XTR - Telegram Stars if omitted)
+$starsBalance = $db->wallets()->getBalance($chat);
+
+// Check user's TON balance (defaults to 0.000000000000000000 if not yet initialized)
+$tonBalance = $db->wallets()->getBalance($chat, 'TON');
+
+echo "Available: {$starsBalance} XTR\n";
+```
+
+::: tip Configurable Default In-System Currency
+By default, Tueen Database uses **`XTR`** (the official standard currency code for Telegram Stars) as the default currency across all wallet balances, orders, withdrawals, and treasury records whenever the `$currency` parameter is omitted.
+
+You can customize the default currency globally via `DatabaseConfig` or environment variables:
+```php
+$config = DatabaseConfig::createSqlite('bot.db')
+    ->withDefaultCurrency('COIN'); // Or via TUEEN_DEFAULT_CURRENCY=COIN in .env
+```
+:::
+
+### 2. Crediting Funds (Deposits, Rewards)
+
+```php
+// Credit 25.0 TON to the user
+$transaction = $db->wallets()->credit(
+    chat: $chat,
+    amount: '25.000000000000000000',
+    currency: 'TON',
+    source: 'stars_conversion',
+    sourceId: 98765,
+);
+
+// Transaction properties
+echo "Transaction ID: {$transaction->publicId}\n";
+echo "Balance Before: {$transaction->balanceBefore}\n";
+echo "Balance After:  {$transaction->balanceAfter}\n";
+```
+
+### 3. Debiting Funds (Purchases, Fees)
+
+```php
+use Tueen\Database\Exception\InsufficientBalanceException;
+
+try {
+    $transaction = $db->wallets()->debit(
+        chat: $chat,
+        amount: '10.000000000000000000',
+        currency: 'TON',
+        source: 'vip_purchase',
+    );
+} catch (InsufficientBalanceException $e) {
+    // Gracefully notify the user that their balance is insufficient
+    echo "Error: {$e->getMessage()}\n";
+}
+```
+
+### 4. Atomic Peer-to-Peer Transfers
+
+Transfer funds between two users in a single atomic database transaction:
+
+```php
+$result = $db->wallets()->transfer(
+    fromChat: $senderChat,
+    toChat: $recipientChat,
+    amount: '15.000000000000000000',
+    currency: 'TON',
+    source: 'p2p_transfer',
+);
+
+// Returns both audited transactions
+$debitTx = $result['debit'];
+$creditTx = $result['credit'];
+```
+
+### 5. Balance Freezing & Unfreezing
+
+Hold funds in escrow (e.g. pending P2P escrow, withdrawal requests, or auction bids):
+
+```php
+// Freeze funds from available balance into frozen_amount
+$db->wallets()->freeze($chat, '50.000000000000000000', 'TON');
+
+// Release frozen funds back to available balance if the escrow is cancelled
+$db->wallets()->unfreeze($chat, '50.000000000000000000', 'TON');
+```
+
+---
+
+## 💸 Payout Requests & Withdrawals (`WithdrawalRepository`)
+
+When users earn commissions (via affiliate programs, creator rewards, or marketplace sales), they can request withdrawals to their crypto wallets, bank cards, or external accounts.
+
+### 1. Requesting a Withdrawal
+
+When a user submits a withdrawal, `WithdrawalRepository` can automatically freeze the requested amount from their wallet to prevent double-spending:
+
+```php
+use Tueen\Database\Enum\WithdrawalStatus;
+
+$withdrawal = $db->withdrawals()->request(
+    chat: $userChat,
+    amount: '100.000000000000000000',
+    currency: 'TON',
+    feeAmount: '1.500000000000000000',
+    commissionRate: '0.015',
+    payoutMethod: 'tonkeeper',
+    destination: 'EQBvW8Z5huBkMJYdn3PCDn5B3a4285Um62V975UVqETqNqLk',
+    freezeBalance: true, // Automatically freezes 100 TON from available balance
+);
+
+echo "Withdrawal Public ID: {$withdrawal->publicId}\n";
+echo "Gross Amount:          {$withdrawal->amount} {$withdrawal->currency}\n";
+echo "Net To Receive:        {$withdrawal->netIncome} {$withdrawal->currency}\n"; // Computed via property hook
+```
+
+### 2. Processing & Approval Workflow
+
+```php
+// Admin reviews and approves the withdrawal
+$approved = $db->withdrawals()->approve($withdrawal);
+
+// Once the crypto transaction or bank transfer is confirmed:
+$completed = $db->withdrawals()->complete(
+    withdrawal: $withdrawal,
+    txHash: '0x3a89e1b29402c4819e018d9f48c08129d8b746824981',
+);
+
+// Or if rejected (automatically unfreezes the held funds back to the user's wallet):
+$rejected = $db->withdrawals()->reject(
+    withdrawal: $withdrawal,
+    reason: 'Invalid recipient wallet address',
+);
+```
+
+### 3. Lifecycle Statuses (`WithdrawalStatus`)
+- **`Pending`:** Newly submitted by the user, awaiting administrator review.
+- **`Processing`:** Under automated or manual payout transmission.
+- **`Approved`:** Verified and approved for release.
+- **`Rejected`:** Denied by administrator (frozen balance automatically restored).
+- **`Cancelled`:** Cancelled by user before processing (frozen balance automatically restored).
+
+---
+
+## 🏛️ Bot Treasury (`TreasuryRepository`)
+
+The `Treasury` tracks the bot operator's overall reserve, total commissions earned, and consumed volume per currency:
+
+```php
+// Record commission income collected from an order
+$tx = $db->treasury()->recordIncome(
+    currency: 'TON',
+    amount: '2.500000000000000000',
+    source: 'order_commission',
+);
+
+// Record operational expense (e.g. server hosting or API costs paid from treasury)
+$expenseTx = $db->treasury()->recordExpense(
+    currency: 'TON',
+    amount: '1.000000000000000000',
+    source: 'server_hosting',
+);
+
+// Check current bot reserve
+$reserve = $db->treasury()->getBalance('TON');
+```
+
+---
+
+## 🧭 Next Steps
+
+- Process product sales with **[E-Commerce Orders & Billing](/guide/orders-and-coupons)**.
+- Manage recurring memberships with **[Subscriptions & VIP](/guide/subscriptions)**.
+
+
+# ==============================================================================
+# File: /guide/orders-and-coupons
+# Section: 💬 Bot Domain & Essentials > Orders, Billing & Coupons
+# ==============================================================================
+
+# Orders, Billing & Coupons
+
+Tueen Database provides a comprehensive billing and commerce engine for Telegram bots selling digital subscriptions, physical goods, services, or VIP access.
+
+---
+
+## 🛍️ The `Order` Lifecycle
+
+Orders follow a clear lifecycle transition represented by the `OrderStatus` backed enum:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending
+    Pending --> Processing
+    Pending --> Paid: Payment Verified
+    Processing --> Paid
+    Paid --> Completed: Delivered
+    Pending --> Cancelled: User / Timeout
+    Paid --> Refunded: Full / Partial Refund
+    Pending --> Failed: Gateway Error
+```
+
+---
+
+## 📦 Creating & Managing Orders
+
+### 1. Creating an Order
+
+```php
+use Tueen\Database\Enum\OrderStatus;
+
+$order = $db->orders()->createOrder(
+    type: 'pro_subscription',
+    chat: $userChat,
+    subtotal: '49.990000000000000000',
+    currency: 'USDT',
+    status: OrderStatus::Pending,
+);
+
+echo "Order Public ID: {$order->publicId}\n";
+echo "Amount Due:      {$order->totalAmount} {$order->currency}\n";
+```
+
+### 2. Marking as Paid
+
+When a payment gateway webhook confirms payment:
+
+```php
+$paidOrder = $db->orders()->markPaid(
+    order: $order,
+    transactionId: 'gw_tx_98127391823',
+    referenceId: 'ref_102938',
+);
+
+if ($paidOrder->isPaid) {
+    // Deliver purchased digital item or upgrade subscription
+}
+```
+
+---
+
+## 🎟️ Coupon & Discount Engine
+
+Tueen Database supports percentage and fixed-amount discounts with usage limits:
+
+### 1. Creating a Coupon
+
+```php
+use Tueen\Database\Entity\Coupon;
+use Tueen\Database\Enum\CouponStatus;
+use Tueen\Database\Enum\CouponType;
+
+$coupon = new Coupon(
+    code: 'TELEGRAM2026',
+    title: '20% Welcome Voucher',
+    type: CouponType::Percent,
+    value: '20.000000000000000000',
+    status: CouponStatus::Active,
+    maxUses: 500,
+    maxUsesPerUser: 1,
+);
+
+$db->getEntityManager()->persist($coupon);
+$db->getEntityManager()->flush();
+```
+
+### 2. Applying a Coupon to an Order
+
+```php
+// Apply coupon code: automatically computes discount and saves snapshot
+$db->orders()->applyCoupon($order, 'TELEGRAM2026');
+
+echo "Discount Applied: {$order->discountAmount} {$order->currency}\n";
+echo "Final Total:      {$order->totalAmount} {$order->currency}\n";
+```
+
+---
+
+## 🧭 Next Steps
+
+- Integrate recurring privileges with **[Subscriptions & VIP](/guide/subscriptions)**.
+- Build mass engagement with the **[Broadcast Campaign Engine](/guide/broadcast-engine)**.
+
+
+# ==============================================================================
+# File: /guide/subscriptions
+# Section: 💬 Bot Domain & Essentials > Subscriptions & VIP Access
+# ==============================================================================
+
+# Subscriptions & VIP Access
+
+Many Telegram bots offer premium memberships, private channel access, or tiered VIP features based on time-limited memberships.
+
+Tueen Database provides a dedicated subscription manager that handles expiration calculations and renewal auditing.
+
+---
+
+## 💎 The `Subscription` Model
+
+A subscription binds a `Chat` to a tier `type` (e.g. `vip`, `channel_pro`, `unlimited_ai`):
+
+- **`expiresAt`:** A `DateTimeImmutable` representing the moment access lapses.
+- **`totalAddedSeconds`:** Cumulative seconds ever credited to this subscription.
+- **Property Hooks:**
+  - `$sub->isActive`: Returns `true` if `expiresAt > now`.
+  - `$sub->remainingSeconds`: Returns remaining time in seconds (0 if expired).
+
+---
+
+## 🛠️ Managing Subscriptions
+
+### 1. Checking Active Status
+
+```php
+// Check if user currently has an active 'vip' subscription
+if ($db->subscriptions()->hasActive($chat, 'vip')) {
+    $sub = $db->subscriptions()->getActive($chat, 'vip');
+    echo "VIP active! Remaining: " . ($sub->remainingSeconds / 86400) . " days.\n";
+} else {
+    echo "No active VIP subscription.\n";
+}
+```
+
+### 2. Granting or Extending Time
+
+When a user purchases 30 days of VIP access:
+
+```php
+// 30 days = 30 * 24 * 3600 = 2,592,000 seconds
+$sub = $db->subscriptions()->addTime(
+    chat: $chat,
+    seconds: 2592000,
+    type: 'vip',
+    source: 'order_payment',
+    sourceId: $order->id,
+);
+
+echo "New Expiration: " . $sub->expiresAt->format('Y-m-d H:i:s') . "\n";
+```
+
+::: tip Seamless Extension
+If the user already has an active subscription with 5 days remaining, `addTime()` appends the new 30 days to their existing expiration date (resulting in 35 days total), rather than resetting it from today.
+:::
+
+---
+
+## 📜 Subscription Audit Trail (`SubscriptionTransaction`)
+
+Every time a subscription is created, renewed, extended, or expired, an immutable `SubscriptionTransaction` is automatically recorded with:
+- `expiresAtBefore` and `expiresAtAfter`
+- `totalAddedSecondsBefore` and `totalAddedSecondsAfter`
+- `source` (e.g. `promo_gift`, `stripe`, `telegram_stars`)
+- `createdBy` (administrator or bot account)
+
+---
+
+## 🧭 Next Steps
+
+- Engage your users using the **[Broadcast Campaign Engine](/guide/broadcast-engine)**.
+- Explore **[Content Entities & CMS](/guide/content-entities)**.
+
+
+# ==============================================================================
+# File: /guide/mini-app-sessions
+# Section: 💬 Bot Domain & Essentials > Telegram Mini App (TMA) Sessions & Auth 🌐
+# ==============================================================================
+
+# Telegram Mini App (TMA) Sessions & Auth 🌐
+
+**Tueen Database** provides a built-in, production-grade session management and authentication layer tailored specifically for **Telegram Mini Apps (TMAs)** and WebApps.
+
+Modern Telegram bots increasingly serve full-screen web applications, Web3 crypto games, mini-stores, and interactive dashboards. Authenticating users securely from Telegram's `initData` and maintaining high-performance bearer sessions is essential.
+
+---
+
+## 🏛️ Architecture Overview
+
+The session layer is backed by the [`TmaSession`](/reference/entities#tmasession) entity and managed through [`TmaSessionRepository`](/reference/repositories#tmasessionrepository).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Telegram User
+    participant TMA as Mini App (Frontend)
+    participant API as Bot Backend
+    participant DB as Tueen Database
+
+    User->>TMA: Opens Mini App inside Telegram
+    TMA->>API: Sends Telegram initData
+    API->>API: Validates HMAC-SHA256 signature
+    API->>DB: $db->tmaSessions()->createSession($chat, ttl: 86400)
+    DB-->>API: Returns TmaSession with 64-char Bearer Token
+    API-->>TMA: Returns { token, expiresAt, user }
+    
+    Note over TMA,API: Subsequent Authenticated Requests
+    TMA->>API: HTTP GET /api/wallet (Authorization: Bearer <token>)
+    API->>DB: $db->tmaSessions()->authenticate($token)
+    DB-->>API: Active TmaSession (Touches lastActiveAt)
+    API-->>TMA: HTTP 200 { balance: "50.00 TON" }
+```
+
+---
+
+## ⚡ Creating a TMA Session
+
+After validating Telegram's `initData` signature on your backend, create a cryptographic bearer session:
+
+```php
+use Tueen\Database\DatabaseManager;
+
+$db = DatabaseManager::create();
+
+// 1. Find or create the Telegram chat/user
+$chat = $db->chats()->findOrCreate(
+    chatId: $telegramUser['id'],
+    username: $telegramUser['username'] ?? null,
+    name: $telegramUser['first_name'] ?? null,
+);
+
+// 2. Issue a secure session
+$session = $db->tmaSessions()->createSession(
+    chat: $chat,
+    ttl: 86400, // 24 hours in seconds
+    queryId: $initData['query_id'] ?? null,
+    startParam: $initData['start_param'] ?? null, // Deep-link referral e.g. ref_123
+    ipAddress: $_SERVER['REMOTE_ADDR'] ?? null,
+    userAgent: $_SERVER['HTTP_USER_AGENT'] ?? null,
+    payload: [
+        'roles' => ['player', 'vip'],
+        'theme' => 'dark',
+    ],
+    authDate: new \DateTimeImmutable('@' . $initData['auth_date']),
+);
+
+// 3. Return bearer token to frontend
+echo json_encode([
+    'token' => $session->token,
+    'publicId' => $session->publicId,
+    'expiresAt' => $session->expiresAt->format(\DateTimeInterface::ATOM),
+]);
+```
+
+---
+
+## 🔐 Authenticating Requests
+
+In your API middleware or controller, authenticate the incoming bearer token:
+
+```php
+$token = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+$token = str_replace('Bearer ', '', $token);
+
+$session = $db->tmaSessions()->authenticate($token);
+
+if ($session === null) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Invalid or expired session.']);
+    exit;
+}
+
+// Session is active and touched!
+$userChat = $session->chat;
+$customPayload = $session->payload;
+
+echo "Authenticated user: " . $userChat->displayName;
+```
+
+> [!TIP]
+> Calling `$db->tmaSessions()->authenticate($token)` automatically verifies that `$session->isValid` (`!isRevoked && !isExpired`) and touches `$session->lastActiveAt` to keep telemetry fresh.
+
+---
+
+## 🚪 Session Revocation & Logout
+
+### Revoking a Single Session (Logout)
+```php
+$revoked = $db->tmaSessions()->revoke($token);
+```
+
+### Revoking All Sessions (Logout Everywhere)
+When a user changes credentials or triggers security reset:
+```php
+$revokedCount = $db->tmaSessions()->revokeAllForChat($chat);
+```
+
+### Listing Active Devices/Sessions
+```php
+$sessions = $db->tmaSessions()->getActiveSessionsForChat($chat);
+
+foreach ($sessions as $s) {
+    echo "Device: {$s->userAgent} - Last Active: {$s->lastActiveAt->format('Y-m-d H:i')}\n";
+}
+```
+
+---
+
+## 🧹 Maintenance & Housekeeping
+
+To keep the `tma_sessions` table lean and fast, schedule a cron or periodic job to purge expired sessions:
+
+```php
+// Deletes sessions where expires_at < NOW()
+$deletedCount = $db->tmaSessions()->cleanupExpired();
+```
+
+---
+
+## 🪝 PHP 8.4 Virtual Property Hooks
+
+The `TmaSession` model utilizes PHP 8.4 property hooks for zero-overhead virtual checks:
+
+```php
+public bool $isExpired {
+    get => $this->expiresAt <= new DateTimeImmutable();
+}
+
+public bool $isValid {
+    get => !$this->isRevoked && !$this->isExpired;
+}
+```
+
+
+# ==============================================================================
+# File: /guide/broadcast-engine
+# Section: 💬 Bot Domain & Essentials > High-Volume Broadcast Engine
+# ==============================================================================
+
+# High-Volume Broadcast Engine
+
+Broadcasting messages to thousands or millions of Telegram chats requires reliable chunking, offset tracking, chat type filtering, and real-time delivery telemetry.
+
+---
+
+## 📢 The `BroadcastMessage` Entity
+
+A `BroadcastMessage` manages a mass messaging campaign:
+
+```mermaid
+flowchart LR
+    Draft["Draft"] --> Queued["Queued"]
+    Queued --> Processing["Processing (Workers Batching)"]
+    Processing --> Paused["Paused"]
+    Paused --> Processing
+    Processing --> Completed["Completed"]
+    Processing --> Cancelled["Cancelled"]
+```
+
+### Key Attributes:
+- **`sourceChatId` & `sourceMessageId`:** References the original admin message to forward or copy.
+- **Filters:** `allowPrivateChats`, `allowGroupChats`, `allowSupergroupChats`, `allowChannelChats`, and `excludedChatIds`.
+- **Offset Cursor (`lastOffset`):** Remembers the last processed chat ID. If a worker process restarts or times out, it resumes exactly where it left off without duplicate deliveries.
+- **Telemetry:** Real-time counters for `sentCount`, `failedCount`, and `ignoredCount`.
+- **Property Hooks:**
+  - `$broadcast->progressPercentage`: Computed percentage (0.0% to 100.0%).
+  - `$broadcast->isFinished`: True if terminal state reached.
+
+---
+
+## 🛠️ Executing a Broadcast Campaign
+
+### 1. Creating the Broadcast
+
+```php
+use Tueen\Database\Entity\BroadcastMessage;
+use Tueen\Database\Enum\BroadcastStatus;
+
+$broadcast = new BroadcastMessage(
+    sourceChat: $adminChat,
+    sourceMessageId: 1045,
+    status: BroadcastStatus::Processing,
+    allowPrivateChats: true,
+    allowGroupChats: false,
+);
+
+$db->getEntityManager()->persist($broadcast);
+$db->getEntityManager()->flush();
+
+// Count total matching recipients
+$total = $db->broadcasts()->countTargetChats($broadcast);
+$broadcast->initialChatCount = $total;
+$db->getEntityManager()->flush();
+```
+
+### 2. Chunked Delivery Loop (Worker Job)
+
+```php
+while (!$broadcast->isFinished) {
+    // Fetch next batch of 100 recipients beyond lastOffset
+    $chats = $db->broadcasts()->fetchNextPendingBatch($broadcast, batchSize: 100);
+
+    if (count($chats) === 0) {
+        $broadcast->status = BroadcastStatus::Completed;
+        $db->getEntityManager()->flush();
+        break;
+    }
+
+    $lastId = $broadcast->lastOffset;
+    $sent = 0;
+    $failed = 0;
+
+    foreach ($chats as $chat) {
+        $lastId = $chat->id;
+        try {
+            // Send telegram copy message...
+            $sent++;
+        } catch (\Throwable $e) {
+            $failed++;
+        }
+    }
+
+    // Persist progress and update offset cursor
+    $db->broadcasts()->updateProgress(
+        broadcast: $broadcast,
+        lastChatId: $lastId,
+        sentIncrement: $sent,
+        failedIncrement: $failed,
+    );
+
+    echo "Progress: {$broadcast->progressPercentage}%\n";
+}
+```
+
+---
+
+## 🧭 Next Steps
+
+- Organize hierarchical items with **[Content Entities & CMS](/guide/content-entities)**.
+- Configure global settings using **[Options & State Cache](/guide/options-and-cache)**.
+
+
+# ==============================================================================
+# File: /guide/content-entities
+# Section: 💬 Bot Domain & Essentials > Content Entities, CMS & Message Relays
+# ==============================================================================
+
+# Content Entities, CMS & Message Relays
+
+Beyond user profiles and payments, Telegram bots often manage structured content catalogs (shop products, FAQs, blog articles, support tickets) and cross-chat communication relays.
+
+Tueen Database provides a flexible Content Management System via **`EntityItem`** and bidirectional message bridging via **`MessageRelay`**.
+
+---
+
+## 🗃️ The `EntityItem` Model & Repository
+
+An `EntityItem` represents an arbitrary typed content record (similar to WordPress Custom Post Types):
+
+- **`type`:** Discriminator string (e.g. `product`, `post`, `faq`, `ticket`, `lesson`).
+- **`slug`:** URL/command safe identifier, unique per `type` (`(type, slug)` unique index).
+- **`chat`:** Author or owner of the item (ManyToOne `Chat`).
+- **`parent`:** Hierarchical parent (for sub-categories, replies, or nested trees).
+- **`title` & `content`:** Text content supporting multi-byte emojis.
+- **`status`:** Lifecycle status (`draft`, `published`, `archived`).
+- **`extra`:** Free-form JSON payload for type-specific attributes.
+
+### 1. Creating and Querying Content Items
+
+```php
+// Create a new content item using EntityItemRepository
+$item = $db->entities()->create(
+    chat: $adminChat,
+    slug: 'vip-bot-license',
+    type: 'product',
+    title: 'Lifetime Bot License',
+    content: 'Full access to the automated trading bot.',
+    status: 'published',
+);
+
+$item->extra = [
+    'sku' => 'LIC-2026-VIP',
+    'download_url' => 'https://tueen.dev/download/vip',
+];
+$db->getEntityManager()->flush();
+
+// Find an item by type and slug
+$product = $db->entities()->findBySlug('product', 'vip-bot-license');
+```
+
+### 2. Social Feedback (`like` & `rate`)
+
+Users can like or rate any content entity with automatic count tracking:
+
+```php
+// Like or unlike an item
+$db->entities()->like($product, $userChat);
+$likesCount = $db->entities()->getLikesCount($product);
+$hasLiked = $db->entities()->hasLiked($product, $userChat);
+
+// Rate an item (1 to 5 stars)
+$db->entities()->rate($product, $userChat, score: 5);
+$averageScore = $db->entities()->getAverageRating($product);
+$totalRatings = $db->entities()->getRatingsCount($product);
+
+echo "Product Rating: {$averageScore} / 5 ({$totalRatings} reviews)\n";
+```
+
+---
+
+## 📬 Cross-Chat Message Relays (`MessageRelayRepository`)
+
+A common architectural challenge in Telegram bots is building **Support Ticket Bots** or **Feedback Channels**:
+1. A user sends a private message to the bot.
+2. The bot forwards/relays the message into an **Admin Supergroup**.
+3. When an admin replies to that message in the supergroup, the bot must know **which user** and **which message** to reply to!
+
+The **`MessageRelay`** entity stores an indexed, bidirectional mapping between `(chat1, message_id1)` and `(chat2, message_id2)`:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User (Private Chat)
+    participant Bot as Telegram Bot
+    participant DB as Tueen Database
+    actor Admin as Admin (Support Group)
+
+    User->>Bot: Sends inquiry ("Help with order #123")
+    Bot->>Admin: Relays message into Support Group
+    Bot->>DB: $db->messageRelays()->relay(userChat, userMsgId, adminGroup, adminMsgId)
+    Admin->>Bot: Replies to relayed message ("Here is the solution...")
+    Bot->>DB: $db->messageRelays()->findOrigin(adminGroup, replyToMsgId)
+    DB-->>Bot: Returns MessageRelay (contains userChat & userMsgId)
+    Bot->>User: Sends admin reply directly to user!
+```
+
+### Code Example: Implementing the Relay
+
+```php
+// Step 1: When user sends a message, relay it to the support channel and record the mapping
+$userMsgId = $update['message']['message_id'];
+$adminMsg = $telegram->sendMessage([
+    'chat_id' => $supportGroupChatId,
+    'text' => "📩 Support inquiry from {$userChat->displayName}:\n\n" . $update['message']['text'],
+]);
+
+$db->messageRelays()->relay(
+    chat1: $userChat,
+    messageId1: $userMsgId,
+    chat2: $supportGroupChat,
+    messageId2: $adminMsg['message_id'],
+    message: ['text' => $update['message']['text']],
+);
+
+// Step 2: When an admin replies in the support channel, find the original user message
+$replyToId = $update['message']['reply_to_message']['message_id'];
+$origin = $db->messageRelays()->findOrigin($supportGroupChat, $replyToId);
+
+if ($origin !== null) {
+    // Deliver the admin's answer straight to the original user!
+    $telegram->sendMessage([
+        'chat_id' => $origin->chat1->id,
+        'reply_to_message_id' => $origin->messageId1,
+        'text' => "👨‍💼 Support Response:\n\n" . $update['message']['text'],
+    ]);
+}
+```
+
+---
+
+## 🧭 Next Steps
+
+- Store global configuration with **[Options & State Cache](/guide/options-and-cache)**.
+- Track changes with **[Audit Trails & Histories](/guide/audit-histories)**.
+
+
+# ==============================================================================
+# File: /guide/options-and-cache
+# Section: 💬 Bot Domain & Essentials > Options, Cache & Data Store
+# ==============================================================================
+
+# Options, Cache & Data Store
+
+Telegram bots manage three distinct categories of auxiliary state:
+1. **Global Bot Options (`OptionRepository`):** Persistent global settings (e.g. welcome messages, maintenance mode, gateway credentials) with automatic in-memory caching.
+2. **Temporary Conversation Cache (`CacheRepository`):** Fast database-backed cache with TTL for conversational flows and FSM states (PSR-16).
+3. **Scoped Arbitrary & Binary Data (`DataRepository`):** Long-term data storage scoped per user or group, supporting large strings and binary BLOB payloads.
+
+---
+
+## ⚙️ Global Bot Settings (`OptionRepository`)
+
+Inspired by WordPress `wp_options`, `OptionRepository` manages persistent key-value configuration across the bot:
+
+### 1. Reading and Writing Options
+
+```php
+// Get option with a fallback default value
+$welcomeText = $db->options()->get('welcome_message', 'Welcome to our bot!');
+
+// Set an option with an optional grouping
+$db->options()->set('welcome_message', 'Hello and welcome to Tueen Bot!', 'localization');
+
+// Set complex array / JSON settings
+$db->options()->set('payment_gateways', [
+    'stars_enabled' => true,
+    'ton_enabled' => true,
+    'crypto_min_deposit' => '5.00',
+], 'billing');
+
+// Check existence or remove
+if ($db->options()->has('maintenance_mode')) {
+    $db->options()->delete('maintenance_mode');
+}
+```
+
+### 2. Built-in In-Memory Caching
+To ensure maximum speed, `OptionRepository` maintains an in-memory process cache. Subsequent reads of the same option during the same request execute in memory with **zero database queries**.
+
+---
+
+## 📦 PSR-16 SimpleCache (`CacheRepository`)
+
+The `CacheRepository` provides database-backed temporary caching implementing PSR-16 `Psr\SimpleCache\CacheInterface`:
+
+```php
+$cache = $db->cache();
+
+// 1. Store conversation state with TTL of 1 hour (3600 seconds)
+$cache->set('fsm_user_123456', [
+    'step' => 'awaiting_payment_amount',
+    'selected_currency' => 'TON',
+], 3600);
+
+// 2. Retrieve state
+$state = $cache->get('fsm_user_123456');
+if ($state !== null) {
+    echo "Current Step: " . $state['step'] . "\n";
+}
+
+// 3. Delete state upon flow completion
+$cache->delete('fsm_user_123456');
+
+// 4. Purge expired records (useful in cron jobs or background tasks)
+$purgedCount = $db->cache()->purgeExpired();
+```
+
+---
+
+## 🗄️ Scoped & Binary Data Store (`DataRepository`)
+
+The **`DataRepository`** (`$db->data()`) handles long-term custom key-value and binary data scoped by a specific chat or group:
+
+```php
+// 1. Store user-scoped preferences or documents
+$db->data()->set(
+    group: 'kyc_verification',
+    name: 'passport_scan',
+    value: $binaryFileStream, // Stored safely as BLOB
+    chat: $userChat,
+);
+
+// 2. Retrieve data with fallback
+$passportData = $db->data()->get('kyc_verification', 'passport_scan', $userChat);
+
+// 3. Store global namespace data (chat = null)
+$db->data()->set(
+    group: 'external_sync',
+    name: 'last_sync_timestamp',
+    value: time(),
+);
+
+// 4. Check or delete
+if ($db->data()->has('kyc_verification', 'passport_scan', $userChat)) {
+    $db->data()->delete('kyc_verification', 'passport_scan', $userChat);
+}
+```
+
+---
+
+## 🧭 Next Steps
+
+- Audit every action with **[Audit Trails & Histories](/guide/audit-histories)**.
+- Accelerate throughput with **[Caching & Performance Tuning](/guide/caching-and-performance)**.
+
+
+# ==============================================================================
+# File: /guide/audit-histories
+# Section: 💬 Bot Domain & Essentials > Audit Trails & Histories
+# ==============================================================================
+
+# Audit Trails & Histories
+
+In multi-user bots and financial systems, maintaining a verifiable audit trail of every administrative action, balance adjustment, and state transition is essential.
+
+Tueen Database includes a universal event log via the **`History`** entity.
+
+---
+
+## 📜 The `History` Model
+
+The `History` entity records any change across any domain model:
+
+- **`targetType` & `targetId`:** Polymorphic target (e.g. `order` #5, `chat` #123456, `entity` #42).
+- **`chatId`:** The actor or subject who triggered or experienced the event.
+- **`action`:** Verb string (e.g. `status_change`, `balance_override`, `ban_user`, `refund`).
+- **`oldValue` & `newValue`:** Previous vs updated state.
+- **`oldStatus` & `newStatus`:** Status delta.
+- **`requestId`:** Telegram update ID or API request UUID for end-to-end tracing.
+- **`extra`:** Free-form JSON context.
+
+---
+
+## 🛠️ Logging Audit Events
+
+Use `HistoryRepository::log()` to record events seamlessly:
+
+```php
+$db->histories()->log(
+    targetType: 'order',
+    targetId: $order->id,
+    action: 'status_transition',
+    chatId: $adminUser->id,
+    oldStatus: 'pending',
+    newStatus: 'paid',
+    requestId: 'tg_update_98712398',
+    extra: [
+        'gateway' => 'telegram_stars',
+        'ip' => '10.0.0.4',
+    ],
+);
+```
+
+### Retrieving Timeline History
+
+```php
+// Retrieve the complete chronological history of an order
+$timeline = $db->histories()->getTimeline(targetType: 'order', targetId: 5);
+
+foreach ($timeline as $entry) {
+    echo "{$entry->createdAt->format('H:i:s')} - {$entry->action}: {$entry->oldStatus} -> {$entry->newStatus}\n";
+}
+```
+
+---
+
+## 🧭 Next Steps
+
+- Optimize throughput with **[Caching & Performance Tuning](/guide/caching-and-performance)**.
+- Explore CLI administration in **[CLI Tooling](/guide/cli-tooling)**.
+
+
+# ==============================================================================
+# File: /guide/caching-and-performance
+# Section: 🛡️ Advanced & Operations > Caching & Performance Tuning
+# ==============================================================================
+
+# Caching & Performance Tuning
+
+High-throughput Telegram bots process hundreds of webhooks per second during viral events, marketing campaigns, or active chat group discussions.
+
+Tueen Database is optimized for sub-millisecond query execution through a multi-tier caching architecture.
+
+---
+
+## 🏎️ Multi-Tier Caching Architecture
+
+```mermaid
+flowchart TD
+    Update["Incoming Telegram Webhook"] --> Mem["Tier 1: In-Memory Runtime Cache (Options, Repositories)"]
+    Mem -- Miss --> Redis["Tier 2: Redis / APCu (Doctrine Metadata & Query Cache)"]
+    Redis -- Miss --> DB["Tier 3: Relational DB (MySQL / Postgres / SQLite)"]
+```
+
+### Tier 1: Process-Level In-Memory Cache
+- `OptionRepository` automatically holds retrieved options in a static array.
+- Redundant calls to `$db->options()->get('key')` within the same webhook execution incur **0 microseconds of I/O latency**.
+
+### Tier 2: Doctrine ORM Metadata & Query Cache
+Doctrine metadata reflection can be cached in Redis, Filesystem, or APCu:
+
+```php
+use Tueen\Database\Config\DatabaseConfig;
+use Tueen\Database\DatabaseManager;
+
+$config = new DatabaseConfig(
+    connection: ...,
+    cacheDriver: 'redis',
+    cacheDsn: 'redis://127.0.0.1:6379',
+);
+
+$db = DatabaseManager::create($config);
+```
+
+---
+
+## 🗄️ Database-Specific Hardening
+
+### SQLite Concurrency Hardening
+When using SQLite file databases, Tueen Database applies the following connection flags on startup:
+1. `PRAGMA journal_mode = WAL;` — Allows concurrent readers without blocking writers.
+2. `PRAGMA busy_timeout = 5000;` — Retries busy locks for up to 5 seconds before throwing.
+3. `PRAGMA foreign_keys = ON;` — Guarantees relational integrity.
+
+### MySQL Index Optimizations
+- All critical queries are covered by composite indexes (e.g. `idx_chats_type_banned_accessible` on `(type, banned, accessible)`).
+- Full table scans are avoided for message broadcasting and user lookups.
+
+---
+
+## 🧭 Next Steps
+
+- Manage database operations with the **[CLI Tooling](/guide/cli-tooling)**.
+- Learn how to **[Extend Entities & Schemas](/guide/extending)**.
+
+
+# ==============================================================================
+# File: /guide/cli-tooling
+# Section: 🛡️ Advanced & Operations > CLI Tooling (`tueen-db`)
+# ==============================================================================
+
+# CLI Tooling (`tueen-db`)
+
+Tueen Database ships with a built-in command-line console executable: **`bin/tueen-db`**.
+
+---
+
+## 🛠️ Available Commands
+
+| Command | Purpose |
+| :--- | :--- |
+| `php bin/tueen-db tueen:db:validate` | Validates ORM mapping metadata and schema sync |
+| `php bin/tueen-db tueen:db:status` | Displays engine status, connection parameters, and registered migrations |
+| `php bin/tueen-db tueen:db:diff` | Dumps pending SQL statements required to synchronize schema |
+| `php bin/tueen-db tueen:db:sync` | Interactively or forcefully synchronizes schema (Zero-Config mode) |
+| `php bin/tueen-db tueen:cache:clear` | Clears database cache and in-memory options runtime cache |
+
+---
+
+## 💻 Command Reference & Usage
+
+### Validating Mappings & Schema (`tueen:db:validate`)
+
+Ensures all Doctrine attributes, entity mappings, relationships, and foreign keys are valid:
+
+```bash
+php bin/tueen-db tueen:db:validate
+```
+
+```
+Tueen Database: Schema & Mapping Validator
+==========================================
+
+ [OK] The mapping files are correct.
+ [OK] The database schema is in sync with the mapping files.
+```
+
+---
+
+### Inspecting Engine Status (`tueen:db:status`)
+
+Displays the active connection driver, database platform, and schema status:
+
+```bash
+php bin/tueen-db tueen:db:status
+```
+
+```
+Tueen Database: Engine Status
+=============================
+
+ --------------- ---------------------------------------- 
+  Driver          pdo_mysql                               
+  Platform        Doctrine\DBAL\Platforms\MySQL80Platform 
+  Database Name   telegram_bot                            
+  Auto-Migrate    Enabled (Zero-Config)                   
+  Dev Mode        No                                      
+  Cache Adapter   redis                                   
+ --------------- ---------------------------------------- 
+
+ [OK] Database Schema: 100% In Sync
+```
+
+---
+
+### Synchronizing Schema (`tueen:db:sync`)
+
+Applies non-destructive schema differences without running manual migration files:
+
+```bash
+# Preview and confirm interactively:
+php bin/tueen-db tueen:db:sync
+
+# Force execution in CI/CD deployment scripts:
+php bin/tueen-db tueen:db:sync --force
+
+# Dump SQL to stdout without executing:
+php bin/tueen-db tueen:db:sync --dump-sql
+```
+
+---
+
+## 🧭 Next Steps
+
+- Learn how to **[Extend Entities & Schemas](/guide/extending)** with custom bot plugins.
+- Integrate with **[Symfony DI & Events](/guide/symfony-integration)**.
+
+
+# ==============================================================================
+# File: /guide/extending
+# Section: 🛡️ Advanced & Operations > Extending Entities & Custom Migrations
+# ==============================================================================
+
+# Extending Entities & Custom Migrations
+
+Tueen Database is built for modular bot ecosystems. Third-party packages, plugins, or your own bot application can easily register new entities, custom tables, and custom migrations.
+
+---
+
+## 🧩 Registering Custom Entity Paths
+
+If your bot defines custom entities (e.g. `App\Entity\QuizQuestion`, `App\Entity\TicketMessage`):
+
+```php
+use Tueen\Database\Config\DatabaseConfig;
+use Tueen\Database\DatabaseManager;
+
+$db = DatabaseManager::create(DatabaseConfig::createSqlite(':memory:'));
+
+// Register additional entity directory
+$db->registerEntityPath(__DIR__ . '/src/Entity');
+
+// The zero-config auto-migrator immediately detects new entities!
+$db->syncSchema();
+```
+
+---
+
+## 📜 Registering Custom Migration Paths
+
+If you prefer versioned migration files for your custom tables:
+
+```php
+// Register a custom migration namespace and directory
+$db->registerMigrationPath('App\\Migrations', __DIR__ . '/migrations');
+```
+
+Any class extending `Doctrine\Migrations\AbstractMigration` located in that folder will be automatically discovered and integrated into `AutoMigrator` and CLI tools.
+
+---
+
+## ✍️ Example Custom Migration
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Migrations;
+
+use Doctrine\DBAL\Schema\Schema;
+use Doctrine\Migrations\AbstractMigration;
+
+final class Version20261003000000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Create bot_quizzes custom table';
+    }
+
+    public function up(Schema $schema): void
+    {
+        $table = $schema->createTable('bot_quizzes');
+        $table->addColumn('id', 'bigint', ['autoincrement' => true]);
+        $table->addColumn('question', 'string', ['length' => 255]);
+        $table->addColumn('reward_amount', 'decimal', ['precision' => 36, 'scale' => 18]);
+        $table->addColumn('created_at', 'datetime_immutable');
+        $table->setPrimaryKey(['id']);
+    }
+
+    public function down(Schema $schema): void
+    {
+        $schema->dropTable('bot_quizzes');
+    }
+}
+```
+
+---
+
+## 🧭 Next Steps
+
+- Integrate with **[Symfony DI & Events](/guide/symfony-integration)**.
+- Browse the full **[Entity Models Catalog](/reference/entities)**.
+
+
+# ==============================================================================
+# File: /guide/symfony-integration
+# Section: 🛡️ Advanced & Operations > Symfony DI & Events
+# ==============================================================================
+
+# Symfony DI & Events
+
+Tueen Database integrates seamlessly with Symfony components, including **DependencyInjection**, **EventDispatcher**, **Validator**, **Serializer**, and **Security**.
+
+---
+
+## 🔌 Symfony DependencyInjection
+
+You can compile a complete dependency injection container containing `DatabaseManager`, repositories, and password hashing services:
+
+```php
+use Tueen\Database\Config\DatabaseConfig;
+use Tueen\Database\DatabaseManager;
+use Tueen\Database\DependencyInjection\ContainerFactory;
+
+$config = DatabaseConfig::createMysql(
+    dbname: 'telegram_bot',
+    user: 'bot_admin',
+    password: 'password',
+);
+
+$container = ContainerFactory::createContainer($config);
+
+// Retrieve services from container
+$db = $container->get(DatabaseManager::class);
+$hasher = $container->get(PasswordHasherService::class);
+```
+
+---
+
+## 📢 Domain Events (`EventDispatcher`)
+
+Tueen Database dispatches Symfony contracts events across lifecycle changes:
+
+| Event Class | Dispatched When |
+| :--- | :--- |
+| `Tueen\Database\Event\ChatCreatedEvent` | A new chat is registered via `findOrCreate` |
+| `Tueen\Database\Event\BalanceChangedEvent` | Funds are credited or debited on a wallet |
+| `Tueen\Database\Event\OrderStatusChangedEvent` | An order is marked as paid, completed, or refunded |
+| `Tueen\Database\Event\MigrationExecutedEvent` | Schema sync or versioned migration completes |
+
+### Listening to Events
+
+```php
+use Tueen\Database\Event\BalanceChangedEvent;
+
+$db->getEventDispatcher()->addListener(BalanceChangedEvent::class, function (BalanceChangedEvent $event) {
+    echo "Balance changed for chat {$event->chat->id} by {$event->amount} {$event->currency}!\n";
+    echo "New Balance: {$event->newBalance}\n";
+});
+```
+
+---
+
+## 🧭 Next Steps
+
+- Review the **[Entity Models Catalog](/reference/entities)**.
+- Browse **[Domain Repositories](/reference/repositories)**.
+
+
+# ==============================================================================
+# File: /reference/entities
+# Section: 📖 API Catalog & Reference > Entity Models Catalog
+# ==============================================================================
+
+# Entity Models Catalog
+
+Tueen Database provides 22+ specialized domain models optimized for Telegram bots.
+
+---
+
+## 🏛️ Entity & Table Summary
+
+| Entity Class | Table Name | Purpose |
+| :--- | :--- | :--- |
+| `Chat` | `chats` | Core Telegram chat, user, group, supergroup, or channel record |
+| `Contact` | `contacts` | Telegram shared contact cards (phone, first name, last name) |
+| `ChatMeta` | `chat_meta` | Key-value settings and metadata per chat |
+| `ChatLike` | `chat_likes` | Social like relationships between chats |
+| `ChatRating` | `chat_ratings` | Numerical ratings (0-100) between chats |
+| `ChatXp` | `chat_xp` | Gamification experience points per chat |
+| `ChatXpTransaction` | `chat_xp_transactions` | Immutable audit log of XP adjustments |
+| `WalletBalance` | `wallet_balances` | Multi-currency balance ledger (TON, Stars, USDT, fiat) |
+| `WalletTransaction` | `wallet_transactions` | Double-entry transaction ledger with audit trail |
+| `Treasury` | `treasury` | Bot operator's reserve balance and total commission |
+| `TreasuryTransaction`| `treasury_transactions`| Audit log of treasury movements |
+| `Coupon` | `coupons` | Discount voucher codes (percentage and fixed) |
+| `CouponMeta` | `coupon_meta` | Key-value metadata per coupon |
+| `CouponUsage` | `coupon_usages` | Redemption tracking per user and order |
+| `Order` | `orders` | Billing orders, invoice tracking, tax, and delivery |
+| `OrderMeta` | `order_meta` | Key-value metadata per order |
+| `Withdrawal` | `withdrawals` | Payout requests to crypto wallets, cards, or bank accounts |
+| `WithdrawalMeta` | `withdrawal_meta` | Key-value metadata per withdrawal |
+| `Subscription` | `subscriptions` | Time-limited memberships and VIP privileges |
+| `SubscriptionTransaction` | `subscription_transactions` | Audit log of subscription extensions and renewals |
+| `Referral` | `referrals` | Viral growth and affiliate tracking with self-referral prevention |
+| `BroadcastMessage` | `broadcast_messages` | Chunked mass messaging campaigns with offset cursor |
+| `EntityItem` | `entities` | Generic CMS content catalog (products, tickets, articles) |
+| `EntityMeta` | `entity_meta` | Key-value metadata per content entity |
+| `EntityLike` | `entity_likes` | Social likes on content entities |
+| `EntityRating` | `entity_ratings` | Numerical ratings on content entities |
+| `MessageRelay` | `message_relays` | Cross-chat message bridging and ticketing relays |
+| `Option` | `options` | Global bot settings and configuration store |
+| `DataItem` | `data` | Binary blob storage and persistent sessions |
+| `CacheItem` | `cache` | Database-backed PSR-16 cache store with TTL |
+| `TmaSession` | `tma_sessions` | Telegram Mini App (TMA) authentication and bearer sessions |
+| `History` | `histories` | Universal polymorphic audit trail for any model action |
+| `SchemaVersion` | `schema_versions` | Applied schema versions and migration tracking |
+
+---
+
+## 🪝 PHP 8.4 Property Hooks Reference
+
+| Entity | Property Hook | Type | Description |
+| :--- | :--- | :--- | :--- |
+| `Chat` | `$isPrivate` | `bool` | True if type is `private` (1-on-1 user) |
+| `Chat` | `$isGroupOrSupergroup`| `bool` | True if type is `group` or `supergroup` |
+| `Chat` | `$isChannel` | `bool` | True if type is `channel` |
+| `Chat` | `$displayName` | `string` | Resolved name, `@username`, or string chat ID |
+| `Chat` | `$canReceiveMessages` | `bool` | True if accessible and not banned |
+| `Chat` | `$username` (set hook)| `?string` | Automatically normalizes and strips leading `@` |
+| `Contact` | `$fullName` | `string` | Formatted `Firstname Lastname` |
+| `Contact` | `$phoneNumber` (set hook) | `string` | Automatically normalizes and strips leading `+` |
+| `WalletBalance`| `$hasPositiveBalance`| `bool` | True if balance > 0 |
+| `WalletTransaction` | `$isCredit` | `bool` | True if amount > 0 |
+| `WalletTransaction` | `$isDebit` | `bool` | True if amount < 0 |
+| `Coupon` | `$isValidNow` | `bool` | True if active and within start/end dates |
+| `Order` | `$isPaid` | `bool` | True if status is Paid or Completed |
+| `Order` | `$totalAmount` | `string` | Computed subtotal + tax + shipping - discount |
+| `Withdrawal` | `$netIncome` | `string` | Computed gross amount - fee |
+| `Subscription` | `$isActive` | `bool` | True if `expiresAt > now` |
+| `Subscription` | `$remainingSeconds`| `int` | Remaining seconds until expiration |
+| `BroadcastMessage` | `$progressPercentage` | `float` | Computed delivery percentage (0.0 to 100.0) |
+| `BroadcastMessage` | `$isFinished` | `bool` | True if broadcast is completed, cancelled, or failed |
+| `CacheItem` | `$isExpired` | `bool` | True if expiration time has passed |
+| `Referral` | `$isQualified` | `bool` | True if referral status is qualified |
+| `TmaSession` | `$isExpired` | `bool` | True if session expiresAt has passed |
+| `TmaSession` | `$isValid` | `bool` | True if not revoked and not expired |
+
+
+# ==============================================================================
+# File: /reference/repositories
+# Section: 📖 API Catalog & Reference > Domain Repositories Reference
+# ==============================================================================
+
+# Domain Repositories Reference
+
+Tueen Database provides rich repository classes accessible via fluent methods on `DatabaseManager`.
+
+---
+
+## 🏛️ Repositories Overview
+
+| Repository Accessor | Return Type | Primary Purpose |
+| :--- | :--- | :--- |
+| `$db->chats()` | `ChatRepository` | User/chat registration, normalization, ban management |
+| `$db->contacts()` | `ContactRepository` | User phone numbers, vCard data, verified identity profiles |
+| `$db->chatXp()` | `ChatXpRepository` | Gamification experience points (XP), leaderboards, audit logs |
+| `$db->wallets()` | `WalletRepository` | Multi-currency balances, credits, debits, P2P transfers, freezing |
+| `$db->withdrawals()` | `WithdrawalRepository` | Payout requests, approvals, balance unfreeze/settlement |
+| `$db->treasury()` / `$db->treasuries()` | `TreasuryRepository` | Operator reserve tracking and commission income/expense logging |
+| `$db->orders()` | `OrderRepository` | Order creation, payments, invoice tracking, discount snapshots |
+| `$db->coupons()` | `CouponRepository` | Coupon validation, usage quotas, user limit enforcement |
+| `$db->subscriptions()` | `SubscriptionRepository`| Time-limited memberships, active checks, renewal logs |
+| `$db->broadcasts()` | `BroadcastRepository` | Mass messaging campaigns, chunked delivery, cursor offsets |
+| `$db->referrals()` | `ReferralRepository` | Viral affiliate registration, self-referral blocks, qualification |
+| `$db->entities()` | `EntityItemRepository` | Generic CMS content catalog (products, tickets, FAQs, likes, ratings) |
+| `$db->messageRelays()` | `MessageRelayRepository`| Cross-chat message bridging (support ticketing, admin relays) |
+| `$db->options()` | `OptionRepository` | Persistent global options with in-memory caching |
+| `$db->cache()` | `CacheRepository` | PSR-16 SimpleCache database store with TTL purging |
+| `$db->data()` | `DataRepository` | Arbitrary key-value and binary BLOB store scoped by chat/group |
+| `$db->tmaSessions()` / `$db->sessions()` | `TmaSessionRepository` | Telegram Mini App bearer session issuance and auth |
+| `$db->histories()` | `HistoryRepository` | Universal polymorphic activity logs and chronological timelines |
+
+---
+
+## 💻 Essential Method Signatures
+
+### `ChatRepository`
+
+```php
+public function findOrCreate(
+    int $chatId,
+    ?string $username = null,
+    ?string $name = null,
+    ChatType $type = ChatType::Private,
+    ?string $languageCode = null,
+): Chat;
+
+public function findByUsername(string $username): ?Chat;
+public function findActive(int $limit = 100, int $offset = 0): array;
+public function ban(int $chatId): void;
+public function unban(int $chatId): void;
+public function setAccessible(int $chatId, bool $accessible): void;
+```
+
+---
+
+### `ContactRepository`
+
+```php
+public function saveContact(
+    Chat|int $user,
+    string $phoneNumber,
+    string $firstName,
+    ?string $lastName = null,
+    ?string $vcard = null,
+): Contact;
+
+public function findByPhoneNumber(string $phoneNumber): ?Contact;
+public function findByChat(Chat|int $chat): ?Contact;
+```
+
+---
+
+### `ChatXpRepository`
+
+```php
+public function getXp(Chat|int $chat): int;
+
+public function addXp(
+    Chat|int $chat,
+    int $amount,
+    ?string $source = null,
+    ?int $sourceId = null,
+    ?Chat $createdBy = null,
+): ChatXpTransaction;
+
+public function deductXp(
+    Chat|int $chat,
+    int $amount,
+    ?string $source = null,
+    ?int $sourceId = null,
+    ?Chat $createdBy = null,
+): ChatXpTransaction;
+
+public function getLeaderboard(int $limit = 10, int $offset = 0): array;
+public function getTransactions(Chat|int $chat, int $limit = 50, int $offset = 0): array;
+```
+
+---
+
+### `WalletRepository`
+
+```php
+public function getBalance(Chat|int $chat, ?string $currency = null): string;
+
+public function credit(
+    Chat|int $chat,
+    string $amount,
+    ?string $currency = null,
+    ?string $source = null,
+    ?int $sourceId = null,
+    ?Chat $createdBy = null,
+): WalletTransaction;
+
+public function debit(
+    Chat|int $chat,
+    string $amount,
+    ?string $currency = null,
+    ?string $source = null,
+    ?int $sourceId = null,
+    ?Chat $createdBy = null,
+): WalletTransaction;
+
+public function transfer(
+    Chat|int $fromChat,
+    Chat|int $toChat,
+    string $amount,
+    ?string $currency = null,
+    ?string $source = 'transfer',
+): array;
+
+public function freeze(Chat|int $chat, string $amount, ?string $currency = null): string;
+public function unfreeze(Chat|int $chat, string $amount, ?string $currency = null): string;
+```
+
+> **Note on Currency:** If `$currency` is `null`, the repository automatically uses the database's configured `$defaultCurrency` (defaults to `XTR` - Telegram Stars, customizable via `DatabaseConfig` or `TUEEN_DEFAULT_CURRENCY` in `.env`).
+
+---
+
+### `WithdrawalRepository`
+
+```php
+public function request(
+    Chat|int $chat,
+    string $amount,
+    ?string $currency = null,
+    string $feeAmount = '0.000000000000000000',
+    string $commissionRate = '0.00',
+    ?string $payoutMethod = null,
+    ?string $destination = null,
+    bool $freezeBalance = true,
+): Withdrawal;
+
+public function approve(Withdrawal|int $withdrawal, ?string $txHash = null): Withdrawal;
+public function reject(Withdrawal|int $withdrawal, ?string $reason = null): Withdrawal;
+public function complete(Withdrawal|int $withdrawal, ?string $txHash = null): Withdrawal;
+public function cancel(Withdrawal|int $withdrawal, ?string $reason = null): Withdrawal;
+```
+
+---
+
+### `TreasuryRepository`
+
+```php
+public function getBalance(?string $currency = null): string;
+
+public function recordIncome(
+    string $amount,
+    ?string $currency = null,
+    ?string $source = null,
+    ?int $sourceId = null,
+    ?Chat $createdBy = null,
+): TreasuryTransaction;
+
+public function recordExpense(
+    string $amount,
+    ?string $currency = null,
+    ?string $source = null,
+    ?int $sourceId = null,
+    ?Chat $createdBy = null,
+): TreasuryTransaction;
+```
+
+---
+
+### `OrderRepository`
+
+```php
+public function createOrder(
+    string $type,
+    Chat|int $chat,
+    string $subtotal,
+    ?string $currency = null,
+    OrderStatus $status = OrderStatus::Pending,
+    ?Coupon $coupon = null,
+    ?string $discountAmount = null,
+    ?string $taxAmount = null,
+    ?string $shippingAmount = null,
+    ?string $referenceId = null,
+    ?string $externalId = null,
+    ?array $items = null,
+    ?array $billingAddress = null,
+    ?array $shippingAddress = null,
+): Order;
+
+public function markPaid(
+    Order|int $order,
+    ?string $transactionId = null,
+    ?string $referenceId = null,
+    ?array $extra = null,
+): Order;
+
+public function markCompleted(Order|int $order): Order;
+public function cancel(Order|int $order, ?string $reason = null): Order;
+public function refund(Order|int $order, ?string $refundAmount = null, ?string $reason = null): Order;
+public function applyCoupon(Order|int $order, Coupon|string $coupon): Order;
+```
+
+---
+
+### `CouponRepository`
+
+```php
+public function validate(Coupon|string $code, Chat|int $user, ?string $subtotal = null): Coupon;
+public function useCoupon(Coupon|string $code, Chat|int $user, Order|int $order, ?string $discountApplied = null): CouponUsage;
+public function findByCode(string $code): ?Coupon;
+public function getUserUsageCount(Coupon|string $code, Chat|int $user): int;
+```
+
+---
+
+### `SubscriptionRepository`
+
+```php
+public function extend(
+    Chat|int $chat,
+    string $plan,
+    int $durationSeconds,
+    ?Order $order = null,
+    ?string $source = null,
+    ?Chat $createdBy = null,
+): Subscription;
+
+public function cancel(Chat|int $chat, string $plan, ?string $reason = null): bool;
+public function findActive(Chat|int $chat, string $plan): ?Subscription;
+public function isSubscribed(Chat|int $chat, string $plan): bool;
+public function getTransactions(Subscription|int $subscription): array;
+```
+
+---
+
+### `BroadcastRepository`
+
+```php
+public function createCampaign(
+    string $text,
+    ?array $entities = null,
+    ?string $mediaType = null,
+    ?string $fileId = null,
+    ?array $replyMarkup = null,
+    ?array $targetFilter = null,
+    ?DateTimeImmutable $scheduledAt = null,
+): BroadcastMessage;
+
+public function getNextBatch(BroadcastMessage|int $broadcast, int $batchSize = 100): array;
+public function updateProgress(BroadcastMessage|int $broadcast, int $sentIncrement, int $failedIncrement = 0, ?int $lastChatId = null): BroadcastMessage;
+public function completeCampaign(BroadcastMessage|int $broadcast): BroadcastMessage;
+public function pauseCampaign(BroadcastMessage|int $broadcast): BroadcastMessage;
+public function resumeCampaign(BroadcastMessage|int $broadcast): BroadcastMessage;
+```
+
+---
+
+### `ReferralRepository`
+
+```php
+public function register(
+    Chat|int $referrer,
+    Chat|int $referred,
+    ?string $campaign = null,
+    ?array $metadata = null,
+): Referral;
+
+public function qualify(Referral|int $referral, ?string $qualificationReason = null): Referral;
+public function getReferrer(Chat|int $referred): ?Chat;
+public function getReferralsCount(Chat|int $referrer, bool $onlyQualified = false): int;
+```
+
+---
+
+### `EntityItemRepository` (CMS)
+
+```php
+public function create(
+    Chat|int $chat,
+    string $slug,
+    string $type = 'entity',
+    ?string $title = null,
+    ?string $content = null,
+    string $status = 'draft',
+    ?EntityItem $parent = null,
+): EntityItem;
+
+public function findBySlug(string $type, string $slug): ?EntityItem;
+public function like(EntityItem|int $entity, Chat|int $chat): bool;
+public function unlike(EntityItem|int $entity, Chat|int $chat): bool;
+public function getLikesCount(EntityItem|int $entity): int;
+public function hasLiked(EntityItem|int $entity, Chat|int $chat): bool;
+public function rate(EntityItem|int $entity, Chat|int $chat, int $score): EntityRating;
+public function getAverageRating(EntityItem|int $entity): float;
+public function getRatingsCount(EntityItem|int $entity): int;
+```
+
+---
+
+### `MessageRelayRepository`
+
+```php
+public function relay(
+    Chat|int $chat1,
+    int $messageId1,
+    Chat|int $chat2,
+    int $messageId2,
+    ?array $message = null,
+): MessageRelay;
+
+public function findOrigin(Chat|int $targetChat, int $targetMessageId): ?MessageRelay;
+```
+
+---
+
+### `OptionRepository`
+
+```php
+public function get(string $name, mixed $default = null): mixed;
+public function set(string $name, mixed $value, ?string $group = null): Option;
+public function has(string $name): bool;
+public function delete(string $name): bool;
+public function getByGroup(string $group): array;
+public static function clearRuntimeCache(): void;
+```
+
+---
+
+### `CacheRepository` (PSR-16)
+
+```php
+public function get(string $key, mixed $default = null): mixed;
+public function set(string $key, mixed $value, null|int|\DateInterval $ttl = null): bool;
+public function delete(string $key): bool;
+public function clear(): bool;
+public function has(string $key): bool;
+public function purgeExpired(): int;
+```
+
+---
+
+### `DataRepository`
+
+```php
+public function get(string $group, string $name, Chat|int|null $chat = null, mixed $default = null): mixed;
+public function set(string $group, string $name, mixed $value, Chat|int|null $chat = null): DataItem;
+public function has(string $group, string $name, Chat|int|null $chat = null): bool;
+public function delete(string $group, string $name, Chat|int|null $chat = null): bool;
+```
+
+---
+
+### `TmaSessionRepository`
+
+```php
+public function createSession(
+    Chat|int $chat,
+    int $ttl = 86400,
+    ?string $queryId = null,
+    ?string $startParam = null,
+    ?string $ipAddress = null,
+    ?string $userAgent = null,
+    ?array $payload = null,
+    ?DateTimeImmutable $authDate = null,
+): TmaSession;
+
+public function authenticate(string $token, bool $touch = true): ?TmaSession;
+public function revoke(string $token): bool;
+public function revokeAllForChat(Chat|int $chat): int;
+public function getActiveSessionsForChat(Chat|int $chat): array;
+public function cleanupExpired(): int;
+```
+
+---
+
+### `HistoryRepository`
+
+```php
+public function log(
+    string $action,
+    ?object $entity = null,
+    Chat|int|null $chat = null,
+    ?array $payload = null,
+): History;
+
+public function findTimeline(Chat|int|null $chat = null, ?string $entityType = null, int $limit = 50): array;
+```
+
+
+# ==============================================================================
+# File: /reference/enums
+# Section: 📖 API Catalog & Reference > Enums & Value Objects Reference
+# ==============================================================================
+
+# Enums & Value Objects Reference
+
+Tueen Database utilizes native backed string enums for type safety, validation, and database storage.
+
+---
+
+## 🏛️ Enum Catalog
+
+### 1. `ChatType` (`Tueen\Database\Enum\ChatType`)
+
+Represents the standard Telegram chat types:
+
+```php
+enum ChatType: string
+{
+    case Private = 'private';
+    case Group = 'group';
+    case Supergroup = 'supergroup';
+    case Channel = 'channel';
+}
+```
+
+#### Helper Methods:
+- `$type->isDirect()`: Returns `true` if `Private`.
+- `$type->isGroup()`: Returns `true` if `Group` or `Supergroup`.
+- `$type->isChannel()`: Returns `true` if `Channel`.
+
+---
+
+### 2. `OrderStatus` (`Tueen\Database\Enum\OrderStatus`)
+
+Represents e-commerce order statuses:
+
+```php
+enum OrderStatus: string
+{
+    case Pending = 'pending';
+    case Processing = 'processing';
+    case Paid = 'paid';
+    case Completed = 'completed';
+    case Cancelled = 'cancelled';
+    case Refunded = 'refunded';
+    case Failed = 'failed';
+}
+```
+
+#### Helper Methods:
+- `$status->isSuccessful()`: Returns `true` for `Paid` or `Completed`.
+- `$status->isFinal()`: Returns `true` for `Completed`, `Cancelled`, `Refunded`, or `Failed`.
+
+---
+
+### 3. `BroadcastStatus` (`Tueen\Database\Enum\BroadcastStatus`)
+
+Represents mass messaging campaign states:
+
+```php
+enum BroadcastStatus: string
+{
+    case Draft = 'draft';
+    case Queued = 'queued';
+    case Processing = 'processing';
+    case Paused = 'paused';
+    case Completed = 'completed';
+    case Cancelled = 'cancelled';
+    case Failed = 'failed';
+}
+```
+
+#### Helper Methods:
+- `$status->isRunning()`: Returns `true` for `Queued` or `Processing`.
+- `$status->isTerminal()`: Returns `true` for `Completed`, `Cancelled`, or `Failed`.
+
+---
+
+### 4. `CouponType` & `CouponStatus`
+
+```php
+enum CouponType: string
+{
+    case Percent = 'percent';
+    case Fixed = 'fixed';
+}
+
+enum CouponStatus: string
+{
+    case Active = 'active';
+    case Disabled = 'disabled';
+    case Expired = 'expired';
+    case Exhausted = 'exhausted';
+}
+```
+
+---
+
+### 5. `TaxMode` (`Tueen\Database\Enum\TaxMode`)
+
+```php
+enum TaxMode: string
+{
+    case Inclusive = 'inclusive';
+    case Exclusive = 'exclusive';
+    case Exempt = 'exempt';
+    case ReverseCharge = 'reverse_charge';
+}
+```
+
+---
+
+### 6. `ReferralStatus` (`Tueen\Database\Enum\ReferralStatus`)
+
+```php
+enum ReferralStatus: string
+{
+    case Pending = 'pending';
+    case Qualified = 'qualified';
+    case Rejected = 'rejected';
+}
+```
+
+---
+
+### 7. `WithdrawalStatus` (`Tueen\Database\Enum\WithdrawalStatus`)
+
+```php
+enum WithdrawalStatus: string
+{
+    case Pending = 'pending';
+    case Processing = 'processing';
+    case Approved = 'approved';
+    case Rejected = 'rejected';
+    case Cancelled = 'cancelled';
+}
+```
