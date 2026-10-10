@@ -1,16 +1,14 @@
-# Zero-Config Auto-Migrations
+# Declarative Zero-Config Auto-Migrations
 
-One of the defining innovations of Tueen Database is its **WordPress-style Zero-Config Migration Engine**.
+One of the defining innovations of Tueen Database is its **Declarative Zero-Config Schema Engine**.
 
 ---
 
 ## ⚡ The Zero-Config Concept
 
-In traditional database frameworks, developers and server administrators must run CLI commands (such as `doctrine-migrations migrations:migrate` or `php artisan migrate`) whenever tables are added or modified. For Telegram bots, bot hosting panels, or plug-and-play plugins, this creates unnecessary operational friction.
+In traditional database frameworks, developers and server administrators must run CLI commands (such as `doctrine-migrations migrations:migrate` or `php artisan migrate`) whenever tables are added or modified. For Telegram bots, bot hosting panels, serverless environments, or plug-and-play plugins, this creates unnecessary operational friction.
 
-WordPress famously solves this with `dbDelta()`: on plugin boot or admin access, WordPress checks the current database schema and applies required changes automatically.
-
-Tueen Database brings this exact zero-config experience to modern PHP 8.4 and Doctrine ORM 3.
+Tueen Database solves this with declarative schema convergence: on bot boot or first database access, the engine compares the current database schema against Doctrine entity definitions and applies non-destructive updates automatically. No manual terminal commands or downtime needed.
 
 ---
 

@@ -14,7 +14,7 @@ Welcome, AI Agent or Pair-Programmer! This guide governs the architectural laws,
    - Always use **Asymmetric Visibility** (`public private(set)`) for entity IDs and immutable timestamps instead of boilerplates.
    - Always declare backed **Enums** for finite states (`ChatType`, `OrderStatus`, `BroadcastStatus`, etc.).
    - Never use parentheses when chaining new instances: `new DateTimeImmutable()->modify(...)`.
-2. **Zero-Config Lazy Migrations (WordPress-Style):**
+2. **Declarative Zero-Config Schema Auto-Sync:**
    - The engine automatically inspects and synchronizes schema diffs on boot/first access via `AutoMigrator` and `SchemaSynchronizer`.
    - End-users must **never** be forced to run manual CLI migration commands to get a bot up and running.
    - When introducing a new table or altering a schema:
@@ -91,7 +91,7 @@ Tueen\Database
 ├── Enum/             # Backed Enums (ChatType, OrderStatus, BroadcastStatus, etc.)
 ├── Event/            # Symfony EventDispatcher domain events
 ├── Exception/        # Typed exceptions (RecordNotFoundException, InsufficientBalanceException)
-├── Migration/        # AutoMigrator, SchemaSynchronizer (WordPress dbDelta style), Registry
+├── Migration/        # AutoMigrator, SchemaSynchronizer (declarative safe diff sync), Registry
 ├── Repository/       # Domain repositories with fluent transactional operations
 ├── Security/         # CredentialManager (.env) & PasswordHasherService
 └── DatabaseManager   # Main entry point and facade for the entire database engine

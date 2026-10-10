@@ -197,22 +197,20 @@ Tueen Database was designed from the ground up for modern PHP 8.4+:
 
 # ==============================================================================
 # File: /guide/zero-config-migrations
-# Section: 🚀 Getting Started > Zero-Config Auto-Migrations
+# Section: 🚀 Getting Started > Declarative Zero-Config Auto-Migrations
 # ==============================================================================
 
-# Zero-Config Auto-Migrations
+# Declarative Zero-Config Auto-Migrations
 
-One of the defining innovations of Tueen Database is its **WordPress-style Zero-Config Migration Engine**.
+One of the defining innovations of Tueen Database is its **Declarative Zero-Config Schema Engine**.
 
 ---
 
 ## ⚡ The Zero-Config Concept
 
-In traditional database frameworks, developers and server administrators must run CLI commands (such as `doctrine-migrations migrations:migrate` or `php artisan migrate`) whenever tables are added or modified. For Telegram bots, bot hosting panels, or plug-and-play plugins, this creates unnecessary operational friction.
+In traditional database frameworks, developers and server administrators must run CLI commands (such as `doctrine-migrations migrations:migrate` or `php artisan migrate`) whenever tables are added or modified. For Telegram bots, bot hosting panels, serverless environments, or plug-and-play plugins, this creates unnecessary operational friction.
 
-WordPress famously solves this with `dbDelta()`: on plugin boot or admin access, WordPress checks the current database schema and applies required changes automatically.
-
-Tueen Database brings this exact zero-config experience to modern PHP 8.4 and Doctrine ORM 3.
+Tueen Database solves this with declarative schema convergence: on bot boot or first database access, the engine compares the current database schema against Doctrine entity definitions and applies non-destructive updates automatically. No manual terminal commands or downtime needed.
 
 ---
 
@@ -1272,7 +1270,7 @@ Tueen Database provides a flexible Content Management System via **`EntityItem`*
 
 ## 🗃️ The `EntityItem` Model & Repository
 
-An `EntityItem` represents an arbitrary typed content record (similar to WordPress Custom Post Types):
+An `EntityItem` represents an arbitrary typed content record (polymorphic content model):
 
 - **`type`:** Discriminator string (e.g. `product`, `post`, `faq`, `ticket`, `lesson`).
 - **`slug`:** URL/command safe identifier, unique per `type` (`(type, slug)` unique index).
@@ -1407,7 +1405,7 @@ Telegram bots manage three distinct categories of auxiliary state:
 
 ## ⚙️ Global Bot Settings (`OptionRepository`)
 
-Inspired by WordPress `wp_options`, `OptionRepository` manages persistent key-value configuration across the bot:
+Inspired by centralized key-value configuration stores, `OptionRepository` manages persistent settings across the bot:
 
 ### 1. Reading and Writing Options
 

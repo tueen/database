@@ -186,7 +186,7 @@ Welcome to the **tueen/database** agent skill. This skill packages the complete 
 - **GitHub Repository:** [tueen/database on GitHub](https://github.com/tueen/database)
 - **Slogan:** *The Zero-Config, High-Throughput Relational Engine for Modern Telegram Bots.*
 - **Target Runtime:** PHP 8.4+ (strict types, property hooks \`get => ...\` / \`set => ...\`, asymmetric visibility \`public private(set)\`).
-- **Zero-Config Auto-Migration:** Lazy schema synchronization on boot / first access via \`AutoMigrator\` and \`SchemaSynchronizer\` (WordPress \`dbDelta\` style).
+- **Zero-Config Auto-Migration:** Declarative lazy schema synchronization on boot / first access via \`AutoMigrator\` and \`SchemaSynchronizer\`.
 - **Financial Precision:** \`DECIMAL(36, 18)\` or \`DECIMAL(40, 18)\` string math using \`bcadd()\`, \`bcsub()\`, \`bccomp()\`, \`bcmul()\`, \`bcdiv()\`. Never native floats!
 - **Telegram Domain Requirements:** Signed 64-bit BigInt for chat IDs (positive user IDs, negative supergroup/channel IDs), UTF-8 / utf8mb4 emojis, automatic \`@\` stripping via property hooks.
 - **Multi-Database Agnostic:** SQLite (\`:memory:\` and file), MySQL 8+, MariaDB, and PostgreSQL.
@@ -222,7 +222,7 @@ When writing, refactoring, or generating code using \`tueen/database\`, AI assis
      \`\`\`
    - Never use parentheses when chaining new instances: \`new DateTimeImmutable()->modify(...)\`.
 
-2. **Zero-Config Lazy Migrations (WordPress-Style):**
+2. **Declarative Zero-Config Schema Auto-Sync:**
    - The engine automatically inspects and synchronizes schema diffs on boot/first access via \`AutoMigrator\` and \`SchemaSynchronizer\`.
    - End-users must never be forced to run manual CLI migration commands to get a bot up and running.
 
@@ -332,7 +332,7 @@ Package Name: tueen/database
 GitHub Repository: https://github.com/tueen/database
 Base URL: ${siteUrl}/
 Documentation Root: ${siteUrl}/guide/
-Architecture: Zero-Config WordPress-style auto-migrations, PHP 8.4 property hooks, signed 64-bit BigInt chat IDs, DECIMAL(36, 18) BCMath ledgers.
+Architecture: Declarative Zero-Config schema synchronization, PHP 8.4 property hooks, signed 64-bit BigInt chat IDs, DECIMAL(36, 18) BCMath ledgers.
 
 > Note: All documentation links below are relative to \`Base URL\`. If the documentation or guides are not sufficient for your task, inspect the source code, tests, and examples directly on GitHub: https://github.com/tueen/database
 
@@ -441,7 +441,7 @@ When generating code for \`tueen/database\`, models MUST follow these principles
 - **Property Hooks:** Use \`get => ...\` and \`set => ...\` for validation, normalization, and computed properties instead of repetitive getters/setters.
 - **Telegram Signed 64-bit Chat IDs:** Telegram user IDs are positive integers, but group, supergroup, and channel IDs are negative numbers (e.g. \`-1001234567890\`). Never use unsigned for \`chat_id\`!
 - **Username Normalization:** Automatically strip leading \`@\` using backed property hooks (\`set (?string $value) => $value !== null ? ltrim(trim($value), '@') : null;\`).
-- **Zero-Config Lazy Migrations:** The engine automatically inspects and synchronizes schema diffs on boot/first access via \`AutoMigrator\` and \`SchemaSynchronizer\` (WordPress \`dbDelta\` style).
+- **Zero-Config Lazy Migrations:** The engine automatically inspects and synchronizes schema diffs on boot/first access via \`AutoMigrator\` and \`SchemaSynchronizer\`.
 - **Ledger & Arbitrary-Precision Math:** All balances and currencies are stored as \`DECIMAL(36, 18)\` strings. Never perform floating-point math; always use BCMath (\`bcadd\`, \`bcsub\`, \`bccomp\`, \`bcmul\`, \`bcdiv\`).
 - **Multi-Database Agnostic:** Support SQLite (\`:memory:\` and file), MySQL 8+, MariaDB, and PostgreSQL.
 - **Repository Inspection:** Check [github.com/tueen/database](https://github.com/tueen/database) for edge cases, entity mappings, repository implementations, and source code details.

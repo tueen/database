@@ -73,7 +73,7 @@ Every entity in `Tueen\Database\Entity` must follow these rules:
 
 ---
 
-## 🔄 3. Zero-Config & Lazy Auto-Migration (WordPress Style)
+## 🔄 3. Declarative Zero-Config Schema Auto-Sync
 
 Tueen Database does not require running CLI migrations during standard development or bot startup:
 

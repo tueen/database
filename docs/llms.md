@@ -41,7 +41,7 @@ When generating code for `tueen/database`, models MUST follow these principles:
 - **Property Hooks:** Use `get => ...` and `set => ...` for validation, normalization, and computed properties instead of repetitive getters/setters.
 - **Telegram Signed 64-bit Chat IDs:** Telegram user IDs are positive integers, but group, supergroup, and channel IDs are negative numbers (e.g. `-1001234567890`). Never use unsigned for `chat_id`!
 - **Username Normalization:** Automatically strip leading `@` using backed property hooks (`set (?string $value) => $value !== null ? ltrim(trim($value), '@') : null;`).
-- **Zero-Config Lazy Migrations:** The engine automatically inspects and synchronizes schema diffs on boot/first access via `AutoMigrator` and `SchemaSynchronizer` (WordPress `dbDelta` style).
+- **Zero-Config Lazy Migrations:** The engine automatically inspects and synchronizes schema diffs on boot/first access via `AutoMigrator` and `SchemaSynchronizer`.
 - **Ledger & Arbitrary-Precision Math:** All balances and currencies are stored as `DECIMAL(36, 18)` strings. Never perform floating-point math; always use BCMath (`bcadd`, `bcsub`, `bccomp`, `bcmul`, `bcdiv`).
 - **Multi-Database Agnostic:** Support SQLite (`:memory:` and file), MySQL 8+, MariaDB, and PostgreSQL.
 - **Repository Inspection:** Check [github.com/tueen/database](https://github.com/tueen/database) for edge cases, entity mappings, repository implementations, and source code details.

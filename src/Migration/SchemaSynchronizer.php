@@ -43,7 +43,7 @@ final class SchemaSynchronizer
     }
 
     /**
-     * Automatically applies schema changes safely (WordPress dbDelta style).
+     * Automatically applies schema changes safely via non-destructive DDL.
      *
      * @return list<string> The executed SQL statements
      */

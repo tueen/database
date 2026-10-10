@@ -8,7 +8,7 @@ Tueen Database provides a flexible Content Management System via **`EntityItem`*
 
 ## 🗃️ The `EntityItem` Model & Repository
 
-An `EntityItem` represents an arbitrary typed content record (similar to WordPress Custom Post Types):
+An `EntityItem` represents an arbitrary typed content record (polymorphic content model):
 
 - **`type`:** Discriminator string (e.g. `product`, `post`, `faq`, `ticket`, `lesson`).
 - **`slug`:** URL/command safe identifier, unique per `type` (`(type, slug)` unique index).

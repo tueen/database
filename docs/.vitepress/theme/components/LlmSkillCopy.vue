@@ -132,7 +132,7 @@ You are an expert PHP and Database architect specializing in \`tueen/database\`.
 - PHP 8.4+ only. Always declare strict types: \`declare(strict_types=1);\`.
 - Asymmetric visibility: write \`public private(set) int $id;\` for entity IDs and immutable timestamps.
 - Property hooks: use hooks for normalized/derived fields (e.g. username sanitization, active status) instead of boilerplate getters/setters.
-- Zero-config auto-migrations: automatic lazy schema sync on boot (WordPress dbDelta style) without manual CLI migrations.
+- Declarative zero-config schema auto-sync: automatic lazy schema synchronization on boot/access without manual CLI migrations.
 - Telegram Domain: Chat IDs are signed 64-bit BigInts (user IDs > 0, groups/channels < 0). Never unsigned! Strip leading '@' on usernames.
 - Financial Precision: DECIMAL(36, 18) stored as strings. NEVER use floating-point math for currencies. Always use BCMath (bcadd, bcsub, bccomp, bcmul, bcdiv).
 - Multi-database agnostic: Flawless execution across SQLite (:memory: and file), MySQL 8+, MariaDB, and PostgreSQL.

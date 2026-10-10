@@ -27,7 +27,7 @@
 
 ## ⚡ Highlights
 
-- 🚀 **WordPress-Style Zero-Config Migrations:** Automatic lazy schema synchronization on boot — no manual CLI migrations required!
+- 🚀 **Declarative Zero-Config Schema Synchronization:** Automatic lazy schema diff synchronization on boot — no manual CLI migrations required!
 - 🪝 **Modern PHP 8.4 Architecture:** Property hooks, asymmetric visibility (`public private(set)`), native lazy objects, and backed enums.
 - 💬 **Telegram-Native Domain:** Built-in models for chats (64-bit signed IDs), users, channels, groups, messages, contacts, and bridging relays.
 - 💳 **Multi-Currency Ledger & Billing:** Arbitrary-precision wallets (TON, Stars, USDT, fiat), double-entry transactions, orders, discounts, and subscriptions.
@@ -60,7 +60,7 @@ $chat = $db->chats()->findOrCreate(
 // 2. Perform atomic wallet credit
 $tx = $db->wallets()->credit($chat, '50.000000000000000000', 'TON', 'welcome_bonus');
 
-// 3. Store global bot options (WordPress-style)
+// 3. Store global bot options and configuration
 $db->options()->set('maintenance_mode', false, 'system');
 ```
 

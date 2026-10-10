@@ -21,7 +21,7 @@ hero:
 
 features:
   - icon: ⚡
-    title: WordPress-Style Zero-Config
+    title: Declarative Zero-Config
     details: Instant lazy schema synchronization on boot. No manual migrations needed to launch bots or install extensions.
   - icon: 🪝
     title: PHP 8.4 Modern Architecture

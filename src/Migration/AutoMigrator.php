@@ -29,7 +29,7 @@ final class AutoMigrator
     }
 
     /**
-     * Executes automatic zero-config migration (like WordPress dbDelta)
+     * Executes automatic declarative zero-config schema synchronization
      * if the database schema is not in sync.
      *
      * @param bool $force If true, executes even if already checked in this instance.

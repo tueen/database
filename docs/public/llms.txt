@@ -5,7 +5,7 @@ Package Name: tueen/database
 GitHub Repository: https://github.com/tueen/database
 Base URL: https://database.tueen.dev/
 Documentation Root: https://database.tueen.dev/guide/
-Architecture: Zero-Config WordPress-style auto-migrations, PHP 8.4 property hooks, signed 64-bit BigInt chat IDs, DECIMAL(36, 18) BCMath ledgers.
+Architecture: Declarative Zero-Config schema synchronization, PHP 8.4 property hooks, signed 64-bit BigInt chat IDs, DECIMAL(36, 18) BCMath ledgers.
 
 > Note: All documentation links below are relative to `Base URL`. If the documentation or guides are not sufficient for your task, inspect the source code, tests, and examples directly on GitHub: https://github.com/tueen/database
 
@@ -39,7 +39,7 @@ When writing code for `tueen/database`, AI assistants and agents MUST adhere to 
     * [2. PHP 8.4 Language Advancements](/guide/architecture#2-php-84-language-advancements)
     * [3. Telegram Domain Invariants](/guide/architecture#3-telegram-domain-invariants)
   - [🧭 Next Steps](/guide/architecture#next-steps)
-- [Zero-Config Auto-Migrations](/guide/zero-config-migrations): One of the defining innovations of Tueen Database is its WordPress-style Zero-Config Migration Engine.
+- [Declarative Zero-Config Auto-Migrations](/guide/zero-config-migrations): One of the defining innovations of Tueen Database is its Declarative Zero-Config Schema Engine.
   - [⚡ The Zero-Config Concept](/guide/zero-config-migrations#the-zero-config-concept)
   - [🔄 How the Lazy Synchronizer Works](/guide/zero-config-migrations#how-the-lazy-synchronizer-works)
   - [🛡️ Safety Guarantees](/guide/zero-config-migrations#safety-guarantees)

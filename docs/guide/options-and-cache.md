@@ -9,7 +9,7 @@ Telegram bots manage three distinct categories of auxiliary state:
 
 ## ⚙️ Global Bot Settings (`OptionRepository`)
 
-Inspired by WordPress `wp_options`, `OptionRepository` manages persistent key-value configuration across the bot:
+Inspired by centralized key-value configuration stores, `OptionRepository` manages persistent settings across the bot:
 
 ### 1. Reading and Writing Options
 
