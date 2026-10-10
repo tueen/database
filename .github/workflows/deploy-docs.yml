@@ -1,0 +1,117 @@
+name: Deploy Documentation to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - '.github/workflows/deploy-docs.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - '.github/workflows/deploy-docs.yml'
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Custom VitePress Base URL (default is /database/ or / with custom domain)'
+        required: false
+        default: ''
+        type: string
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: 'pages'
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: docs/package-lock.json
+
+      - name: Cache VitePress Build Cache
+        uses: actions/cache@v4
+        with:
+          path: docs/.vitepress/cache
+          key: ${{ runner.os }}-vitepress-${{ hashFiles('docs/package-lock.json') }}-${{ hashFiles('docs/**/*.md') }}
+          restore-keys: |
+            ${{ runner.os }}-vitepress-${{ hashFiles('docs/package-lock.json') }}-
+            ${{ runner.os }}-vitepress-
+
+      - name: Install Dependencies
+        working-directory: docs
+        run: npm ci --prefer-offline
+
+      - name: Build VitePress Site
+        working-directory: docs
+        env:
+          VITEPRESS_BASE: ${{ inputs.base_url || '' }}
+        run: npm run docs:build
+
+      - name: Ensure .nojekyll Exists
+        run: touch docs/.vitepress/dist/.nojekyll
+
+      - name: Upload Pages Artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/.vitepress/dist
+
+      - name: Generate Build Summary
+        run: |
+          echo "### 👑 Tueen Database Documentation Build" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Trigger Event** | \`${{ github.event_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Branch / Ref** | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Node.js Runtime** | \`22.x LTS\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Status** | ✅ Static Site & LLM Context Generated Successfully |" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "| **Mode** | 🔍 PR Dry-Run Validation (Build check passed, deployment skipped) |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| **Target Environment** | 🚀 GitHub Pages |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Report Deployment Summary
+        run: |
+          echo "### 🚀 Documentation Deployed to GitHub Pages!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "👑 **Live Site URL:** [${{ steps.deployment.outputs.page_url }}](${{ steps.deployment.outputs.page_url }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> The documentation was built with modern VitePress, interactive Mermaid diagrams, and automated LLM artifacts." >> $GITHUB_STEP_SUMMARY
